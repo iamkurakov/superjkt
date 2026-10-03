@@ -18,8 +18,9 @@ export class Input {
     this.keys = { x: 0, y: 0 };
     this.keyState = {};
     this.joy = { x: 0, y: 0, active: false, id: null, cx: 0, cy: 0, radius: 50 };
-    this.tilt = { enabled: false, available: false, x: 0, y: 0, beta: 0, gamma: 0, beta0: null, gamma0: null, hasData: false, sensitivity: 22 };
+    this.tilt = { enabled: false, granted: false, x: 0, y: 0, beta: 0, gamma: 0, beta0: null, gamma0: null, hasData: false, lastData: 0, sensitivity: 16, source: null };
     this.isTouch = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+    this._isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
     this._bind();
   }
@@ -102,9 +103,22 @@ export class Input {
 
     // Наклоны
     this._onOrientation = (e) => {
-      if (e.beta === null || e.gamma === null) return;
-      this.tilt.hasData = true;
+      if (e.beta === null || e.gamma === null || e.beta === undefined) return;
+      this.tilt.hasData = true; this.tilt.lastData = performance.now(); this.tilt.source = 'orientation';
       this.tilt.beta = e.beta; this.tilt.gamma = e.gamma;
+    };
+    // Запасной источник: гравитация из devicemotion → углы наклона (если deviceorientation молчит)
+    this._onMotion = (e) => {
+      if (this.tilt.source === 'orientation' && performance.now() - this.tilt.lastData < 1000) return;
+      const a = e.accelerationIncludingGravity;
+      if (!a || a.x === null || a.x === undefined) return;
+      // iOS отдаёт вектор гравитации, Android — противодействие ей: приводим к одному знаку
+      const sign = this._isIOS ? -1 : 1;
+      const gx = a.x * sign, gy = a.y * sign, gz = a.z * sign;
+      const beta = Math.atan2(gy, gz) * 180 / Math.PI;                    // наклон вперёд-назад
+      const gamma = Math.atan2(-gx, Math.hypot(gy, gz)) * 180 / Math.PI;  // наклон влево-вправо
+      this.tilt.hasData = true; this.tilt.lastData = performance.now(); this.tilt.source = 'motion';
+      this.tilt.beta = beta; this.tilt.gamma = gamma;
     };
   }
 
@@ -117,36 +131,49 @@ export class Input {
 
   // ---- Наклоны устройства ----
   tiltSupported() {
-    return this.isTouch && typeof window.DeviceOrientationEvent !== 'undefined';
+    return this.isTouch && (typeof window.DeviceOrientationEvent !== 'undefined' || typeof window.DeviceMotionEvent !== 'undefined');
   }
 
-  // Вызывать из обработчика жеста пользователя (требование iOS).
+  // Вызывать из обработчика жеста пользователя (требование iOS 13+).
   async requestTilt() {
     if (!this.tiltSupported()) return { ok: false, reason: 'unsupported' };
     try {
-      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
         const res = await DeviceOrientationEvent.requestPermission();
         if (res !== 'granted') return { ok: false, reason: 'denied' };
       }
     } catch (e) { return { ok: false, reason: 'denied' }; }
-    window.removeEventListener('deviceorientation', this._onOrientation);
-    window.addEventListener('deviceorientation', this._onOrientation);
-    // Проверяем, что данные действительно приходят
-    const got = await new Promise((resolve) => {
-      if (this.tilt.hasData) return resolve(true);
-      const t = setTimeout(() => resolve(this.tilt.hasData), 1500);
-      const once = () => { clearTimeout(t); resolve(true); };
-      window.addEventListener('deviceorientation', once, { once: true });
-    });
-    if (!got) return { ok: false, reason: 'nodata' };
-    this.tilt.available = true;
+    try {
+      if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+        await DeviceMotionEvent.requestPermission();
+      }
+    } catch (e) { /* motion — только запасной источник */ }
+    this._listen();
+    this.tilt.granted = true;
     this.tilt.enabled = true;
-    return { ok: true };
+    this.tilt.beta0 = null;
+    // Ждём первые данные недолго; отсутствие данных не считаем ошибкой — проверим в полёте
+    await new Promise((resolve) => {
+      if (this.tilt.hasData) return resolve();
+      const t = setTimeout(resolve, 1200);
+      const once = () => { clearTimeout(t); resolve(); };
+      window.addEventListener('deviceorientation', once, { once: true });
+      window.addEventListener('devicemotion', once, { once: true });
+    });
+    return { ok: true, hasData: this.tilt.hasData };
+  }
+  _listen() {
+    window.removeEventListener('deviceorientation', this._onOrientation);
+    window.removeEventListener('devicemotion', this._onMotion);
+    window.addEventListener('deviceorientation', this._onOrientation, true);
+    window.addEventListener('devicemotion', this._onMotion, true);
   }
   disableTilt() {
     this.tilt.enabled = false;
     if (this.mode === 'tilt') this.mode = 'joystick';
   }
+  // Данные приходили за последние 2 секунды?
+  tiltAlive() { return this.tilt.hasData && performance.now() - this.tilt.lastData < 2000; }
   // Запоминаем текущее положение телефона как нейтральное
   calibrateTilt() {
     this.tilt.beta0 = this.tilt.beta;
@@ -164,7 +191,7 @@ export class Input {
     else if (angle === 180) { x = -dg; y = -db; }
     else { x = dg; y = db; }
     const s = t.sensitivity;
-    const dead = 1.5;
+    const dead = 1.0;
     const f = (v) => { const a = Math.abs(v); if (a < dead) return 0; return clamp(Math.sign(v) * (a - dead) / s, -1, 1); };
     return { x: f(x), y: f(y) };
   }

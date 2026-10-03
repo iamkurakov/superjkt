@@ -13,7 +13,7 @@ export class Game {
     this.objDefs = objects.objects;
     this.categories = objects.categories;
     this.balance = objects.balance;
-    this.missionDefs = missions.missions.slice().sort((a, b) => a.start - b.start);
+    this.roundDefs = missions.rounds.slice();
     this.texts = texts;
     this.listeners = {};
     this.reset();
@@ -24,11 +24,13 @@ export class Game {
 
   reset() {
     const b = this.balance;
-    this.t = 0;
+    this.t = 0;              // общее время полёта
+    this.rt = 0;             // время внутри раунда
     this.dist = 0;
     this.paused = false;
     this.finished = false;
     this.started = false;
+    this.between = false;    // пауза между раундами
     this.px = 0; this.py = 0;
     this.shield = b.shieldStart;
     this.energy = b.energyStart;
@@ -46,27 +48,53 @@ export class Game {
     this.emergencyUntil = 0;
     this.lastHitAt = -10;
     this.mission = null;
-    this.missionDoneUntil = 0;
-    this.missionIdx = 0;
+    this.roundIndex = -1;
+    this.round = null;
+    this.rounds = this.roundDefs.map((d) => ({ def: d, result: null }));
     this.missionSpawns = [];
-    this.gateTimes = this._buildGateTimes();
-    this.cargoFullNoticeAt = -10;
+    this.gateTimes = [];
     this.stats = {
-      shots: 0, hits: 0, missionsDone: 0, missionsTotal: this.missionDefs.length,
+      shots: 0, hits: 0, roundsWon: 0, roundsTotal: this.roundDefs.length,
       emergencies: 0, categories: new Set(), deliveries: 0, pickups: 0, collisions: 0,
     };
   }
 
-  _buildGateTimes() {
-    const times = [];
-    const r = this.route;
-    for (let t = r.tutorialDuration + r.gateInterval; t < r.missionDuration - 6; t += r.gateInterval) times.push(t);
-    // Финальный шлюз перед финишем
-    times.push(r.missionDuration - 5);
-    return times;
+  start() { this.started = true; this.emit('start'); this._startRound(0); }
+
+  _startRound(idx) {
+    const r = this.rounds[idx];
+    this.roundIndex = idx;
+    this.round = r;
+    this.rt = 0;
+    this.between = false;
+    this.objects = [];
+    this.missionSpawns = [];
+    this.spawnTimer = 1.2;
+    const secIdx = Math.max(0, this.route.sections.findIndex((s) => s.id === r.def.section));
+    if (secIdx !== this.sectionIndex) this._enterSection(secIdx);
+    // Финишный шлюз раунда прибывает к концу отсчёта
+    this.gateTimes = [{ time: Math.max(1, r.def.duration - this.route.roundGateLead), final: true }];
+    this.emit('round', { state: 'start', index: idx, total: this.rounds.length, round: r });
+    this._missionStart(r.def);
   }
 
-  start() { this.started = true; this.emit('start'); this._enterSection(0); }
+  nextRound() {
+    if (!this.between) return;
+    if (this.roundIndex + 1 >= this.rounds.length) { this._finish(); return; }
+    this._startRound(this.roundIndex + 1);
+  }
+
+  _endRound() {
+    const r = this.round;
+    const won = !!(this.mission && this.mission.done);
+    if (this.mission && !this.mission.done) this._missionFail(true);
+    r.result = won ? 'win' : 'lose';
+    if (won) this.stats.roundsWon++;
+    this.mission = null;
+    this.between = true;
+    this.missionSpawns = [];
+    this.emit('round', { state: 'end', index: this.roundIndex, total: this.rounds.length, round: r, won, last: this.roundIndex + 1 >= this.rounds.length });
+  }
 
   // ---------- Геометрия ----------
   curve(z) {
@@ -87,10 +115,11 @@ export class Game {
 
   // ---------- Основной цикл ----------
   update(dt, input) {
-    if (!this.started || this.paused || this.finished) return;
+    if (!this.started || this.paused || this.finished || this.between) return;
     dt = Math.min(dt, 0.05);
     const b = this.balance;
     this.t += dt;
+    this.rt += dt;
     const speed = this.route.forwardSpeed;
     this.dist += speed * dt;
 
@@ -108,41 +137,34 @@ export class Game {
 
     // Энергия
     this.energy = clamp(this.energy + b.energyRegen * dt, 0, 100);
-
-    // Участки
-    const secIdx = this.route.sections.findIndex((s) => this.t >= s.start && this.t < s.end);
-    if (secIdx >= 0 && secIdx !== this.sectionIndex) this._enterSection(secIdx);
     this.curveAmp += (this.section.curve - this.curveAmp) * (1 - Math.exp(-dt * 0.8));
 
-    // Задания
-    this._updateMissions();
-
-    // Шлюзы
-    while (this.gateTimes.length && this.t >= this.gateTimes[0]) { this.gateTimes.shift(); this._spawnGate(); }
+    // Шлюзы раунда
+    while (this.gateTimes.length && this.rt >= this.gateTimes[0].time) { const g = this.gateTimes.shift(); this._spawnGate(g.final); }
 
     // Спавн объектов задания
-    while (this.missionSpawns.length && this.t >= this.missionSpawns[0].time) {
+    while (this.missionSpawns.length && this.rt >= this.missionSpawns[0].time) {
       const s = this.missionSpawns.shift();
       this._spawn(s.type, { mission: true, missionId: s.missionId });
     }
 
-    // Обычный спавн
+    // Обычный спавн (не перед самым финишем раунда)
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
       this.spawnTimer = this.section.spawnInterval * rand(0.8, 1.2);
-      this._regularSpawn();
+      if (this.rt < this.round.def.duration - this.route.roundGateLead - 1) this._regularSpawn();
     }
 
     // Движение объектов и взаимодействие
     for (const o of this.objects) {
       o.z -= speed * dt;
       o.spin += dt;
-      if (!o.passed && o.z <= 0.6) { o.passed = true; this._encounter(o); }
+      if (!o.passed && o.z <= 0.6) { o.passed = true; this._encounter(o); if (this.between) return; }
     }
     this.objects = this.objects.filter((o) => o.z > -6 && !(o.resolved && o.z <= 0.6 && o.type !== 'gate'));
 
-    // Финиш
-    if (this.t >= this.route.missionDuration) this._finish();
+    // Страховка: если шлюз не встретился, раунд всё равно завершается
+    if (this.rt >= this.round.def.duration + 2) this._endRound();
   }
 
   _enterSection(idx) {
@@ -178,8 +200,8 @@ export class Game {
     this.objects.push(o);
     return o;
   }
-  _spawnGate() {
-    this.objects.push({ id: this.nextId++, type: 'gate', kind: 'gate', x: 0, y: 0, z: Z_FAR + 2, spin: 0, passed: false, resolved: false, size: 1 });
+  _spawnGate(final = false) {
+    this.objects.push({ id: this.nextId++, type: 'gate', kind: 'gate', x: 0, y: 0, z: Z_FAR + 2, spin: 0, passed: false, resolved: false, size: 1, final });
   }
   _regularSpawn() {
     const s = this.section;
@@ -280,6 +302,10 @@ export class Game {
 
   _gate(g) {
     g.resolved = true;
+    this._unload();
+    if (g.final) this._endRound();
+  }
+  _unload() {
     const b = this.balance;
     const items = this.cargo.slice();
     this.cargo = [];
@@ -302,7 +328,7 @@ export class Game {
 
   // ---------- Стрельба ----------
   fire(w, h) {
-    if (!this.started || this.paused || this.finished) return;
+    if (!this.started || this.paused || this.finished || this.between) return;
     const b = this.balance;
     if (this.t - this.lastShot < 1 / b.fireRate) return;
     if (this.energy < b.pulseEnergy) { this.emit('toast', { text: this.texts.hud.noEnergy, kind: 'warn', short: true }); return; }
@@ -348,34 +374,15 @@ export class Game {
     if (n) this.emit('score', { delta: n, score: this.score });
   }
 
-  // ---------- Задания ----------
-  _updateMissions() {
-    if (this.mission) {
-      const m = this.mission;
-      if (!m.done && this.t >= m.deadline) this._missionFail();
-      return;
-    }
-    if (this.missionIdx >= this.missionDefs.length) return;
-    const def = this.missionDefs[this.missionIdx];
-    if (this.t >= def.start) this._missionStart(def);
-  }
+  // ---------- Задание раунда ----------
   _missionStart(def) {
-    this.missionIdx++;
-    this.mission = { def, start: this.t, deadline: def.start + def.duration, progress: 0, done: false, shots: 0, delivered: 0 };
-    // Расписание объектов задания: первая половина задания, чтобы объекты встретились до шлюза и дедлайна
+    this.mission = { def, start: this.rt, deadline: def.duration, progress: 0, done: false, shots: 0, delivered: 0 };
+    // Объекты задания появляются в первой половине раунда, чтобы встретиться до финишного шлюза
     const list = def.spawn || [];
-    const delay = def.spawnDelay != null ? def.spawnDelay : 1;
-    const windowLen = Math.max(0, (def.type === 'shoot' || def.type === 'final' ? def.duration * 0.55 : def.duration * 0.42) - delay);
+    const delay = def.spawnDelay != null ? def.spawnDelay : 1.5;
+    const windowLen = Math.max(0, (def.duration - this.route.roundGateLead) * 0.6 - delay);
     const step = list.length > 1 ? windowLen / (list.length - 1) : 0;
-    this.missionSpawns = list.map((type, i) => ({ time: this.t + delay + i * step, type, missionId: def.id }));
-    // Шлюзы, нужные самому заданию (специальные доставки учитывают время до ближайшего шлюза)
-    if (def.gates && def.gates.length) {
-      for (const off of def.gates) {
-        const gt = def.start + off;
-        if (!this.gateTimes.some((t) => Math.abs(t - gt) < 8)) this.gateTimes.push(gt);
-      }
-      this.gateTimes.sort((a, b) => a - b);
-    }
+    this.missionSpawns = list.map((type, i) => ({ time: delay + i * step, type, missionId: def.id }));
     this.emit('mission', { state: 'start', mission: this.mission });
   }
   _missionEvent(kind, data) {
@@ -414,24 +421,20 @@ export class Game {
   _missionDone() {
     const m = this.mission;
     m.done = true;
-    this.stats.missionsDone++;
     this._addScore(m.def.reward || this.balance.missionScore);
     this.emit('mission', { state: 'done', mission: m });
     this.emit('toast', { text: this.texts.hud.missionDone, kind: 'good' });
-    this.missionDoneUntil = this.t + 3;
-    this.mission = null;
-    this.lastMission = m;
-    // Объекты завершённого задания остаются, но больше не отмечаются
-    this.missionSpawns = this.missionSpawns.filter((s) => s.missionId !== m.def.id);
+    // Объекты задания больше не нужны — снимаем метку
+    this.missionSpawns = [];
+    for (const o of this.objects) if (o.mission) o.mission = false;
   }
-  _missionFail() {
+  _missionFail(silent = false) {
     const m = this.mission;
+    if (!m) return;
     m.failed = true;
     this.combo = 0;
     this.emit('mission', { state: 'failed', mission: m });
-    this.emit('toast', { text: this.texts.hud.missionFailed, kind: 'warn' });
-    this.mission = null;
-    this.lastMission = m;
+    if (!silent) this.emit('toast', { text: this.texts.hud.missionFailed, kind: 'warn' });
     this.missionSpawns = [];
   }
   missionTarget() {
@@ -445,24 +448,25 @@ export class Game {
   // ---------- Финиш ----------
   _finish() {
     this.finished = true;
-    if (this.mission && !this.mission.done) this._missionFail();
+    this.between = false;
     const s = this.stats;
-    const ratio = s.missionsTotal ? s.missionsDone / s.missionsTotal : 0;
+    const ratio = s.roundsTotal ? s.roundsWon / s.roundsTotal : 0;
     let stars = 1;
     if (ratio >= 0.6) stars = 2;
     if (ratio >= 0.8 && s.emergencies <= 1) stars = 3;
     const result = {
       score: this.score, stars,
-      missionsDone: s.missionsDone, missionsTotal: s.missionsTotal,
+      roundsWon: s.roundsWon, roundsTotal: s.roundsTotal,
       accuracy: s.shots ? Math.round((s.hits / s.shots) * 100) : 0,
       categories: Array.from(s.categories).map((c) => this.categories[c].name),
       emergencies: s.emergencies,
+      rounds: this.rounds.map((r) => ({ id: r.def.id, title: r.def.title, result: r.result })),
     };
     this.emit('finish', result);
   }
 
   // ---------- Вспомогательное для интерфейса ----------
-  timeLeft() { return Math.max(0, this.route.missionDuration - this.t); }
+  roundTimeLeft() { return this.round ? Math.max(0, this.round.def.duration - this.rt) : 0; }
   isInvulnerable() { return this.t < this.invulnUntil; }
   isEmergency() { return this.t < this.emergencyUntil; }
   nextMissionObject() {

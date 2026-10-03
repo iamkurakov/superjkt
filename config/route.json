@@ -1,15 +1,11 @@
 {
-  "missionDuration": 360,
-  "tutorialDuration": 45,
-  "gateInterval": 30,
   "forwardSpeed": 14,
-  "lookAheadSeconds": 2.2,
+  "roundGateLead": 5.6,
+  "betweenRounds": 2.8,
   "sections": [
     {
       "id": "esophagus",
       "name": "Пищевод",
-      "start": 0,
-      "end": 45,
       "colors": { "wall": "#F08A7A", "deep": "#C4473C", "glow": "#FFC3B4", "accent": "#FFE0D6" },
       "curve": 0.25,
       "damage": false,
@@ -23,8 +19,6 @@
     {
       "id": "stomach",
       "name": "Желудок",
-      "start": 45,
-      "end": 135,
       "colors": { "wall": "#F27D6F", "deep": "#B8362C", "glow": "#FFB9A6", "accent": "#FFD9CC" },
       "curve": 0.35,
       "damage": true,
@@ -38,8 +32,6 @@
     {
       "id": "smallIntestine",
       "name": "Тонкий кишечник",
-      "start": 135,
-      "end": 255,
       "colors": { "wall": "#F2A08E", "deep": "#C25A49", "glow": "#FFD2C2", "accent": "#FFE9DF" },
       "curve": 0.7,
       "damage": true,
@@ -53,8 +45,6 @@
     {
       "id": "microworld",
       "name": "Толстый кишечник · Микромир",
-      "start": 255,
-      "end": 360,
       "colors": { "wall": "#8E63C8", "deep": "#3C2466", "glow": "#7BE3A9", "accent": "#C8F5DB" },
       "curve": 0.6,
       "damage": true,

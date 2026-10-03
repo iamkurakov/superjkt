@@ -39,6 +39,7 @@
             <span class="chip-icon">🔊</span><span class="chip-label" data-text="start.sound">Звук</span>
           </button>
         </div>
+        <p id="tilt-hint" class="tilt-hint" hidden data-text="start.tiltHint">Наклоняй телефон — корабль следует за наклоном. Тап по экрану — импульс.</p>
         <p id="best-line" class="best-line" hidden><span data-text="start.best">Лучший результат</span>: <b id="best-score">0</b></p>
         <p class="disclaimer" data-text="start.disclaimer">Фантастическое путешествие. Эффекты предметов условны.</p>
       </div>
@@ -77,12 +78,14 @@
           <div class="mission-bar"><i id="mission-bar-fill"></i></div>
         </div>
         <div class="hud-right">
-          <div class="hud-timer"><span class="ico">⏱</span><span id="hud-time">06:00</span></div>
+          <div class="hud-timer"><span id="hud-round" class="hud-round">Раунд 1/10</span><span class="ico">⏱</span><span id="hud-time">0:30</span></div>
           <div id="hud-section" class="hud-section">Пищевод</div>
           <button id="btn-pause" class="btn-icon" aria-label="Пауза">❚❚</button>
         </div>
       </div>
 
+      <div id="round-strip" class="round-strip" aria-hidden="true"></div>
+      <div id="tilt-badge" class="tilt-badge" hidden>📱 <span data-text="hud.tiltActive">Наклоны</span></div>
       <div id="toast" class="toast" aria-live="polite"></div>
       <div id="score-pop" class="score-pop"></div>
 
@@ -116,8 +119,21 @@
       </div>
       <button id="btn-fire" class="btn-fire" aria-label="Импульс"><span>◎</span></button>
 
+      <div id="round-overlay" class="round-overlay" hidden>
+        <div class="round-card">
+          <div id="round-label" class="round-label">Раунд 1 из 10</div>
+          <div id="round-verdict" class="round-verdict win">Победа!</div>
+          <div id="round-task" class="round-task">Подбери воду</div>
+          <div id="round-dots" class="round-dots"></div>
+          <button id="btn-round-next" class="btn btn-primary btn-xl" data-text="hud.roundNext">Дальше</button>
+        </div>
+      </div>
       <div id="tilt-overlay" class="tilt-overlay" hidden>
-        <div class="tilt-card"><span class="tilt-icon">📱</span><p id="tilt-text">Держи телефон удобно — так он будет лететь прямо</p></div>
+        <div class="tilt-card">
+          <span class="tilt-icon">📱</span>
+          <p id="tilt-text">Держи телефон удобно — так он будет лететь прямо</p>
+          <p id="tilt-sensor" class="tilt-sensor"></p>
+        </div>
       </div>
     </section>
 
@@ -143,10 +159,11 @@
         <div id="result-newbest" class="newbest" hidden data-text="result.newBest">Новый рекорд!</div>
         <div class="result-grid">
           <div class="rcell"><span class="rlabel" data-text="result.score">Очки</span><b id="r-score">0</b></div>
-          <div class="rcell"><span class="rlabel" data-text="result.missions">Задания</span><b id="r-missions">0/0</b></div>
+          <div class="rcell"><span class="rlabel" data-text="result.rounds">Раунды выиграны</span><b id="r-rounds">0/0</b></div>
           <div class="rcell"><span class="rlabel" data-text="result.accuracy">Точность стрельбы</span><b id="r-accuracy">0%</b></div>
           <div class="rcell rcell-wide"><span class="rlabel" data-text="result.categories">Собранные категории</span><b id="r-categories">—</b></div>
         </div>
+        <div id="result-rounds" class="result-rounds"></div>
         <div class="panel-buttons">
           <button id="btn-replay" class="btn btn-primary btn-xl" data-text="result.replay">Ещё раз</button>
           <button id="btn-menu" class="btn btn-ghost" data-text="result.menu">В меню</button>
