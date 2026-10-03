@@ -1,0 +1,176 @@
+{
+  "missions": [
+    {
+      "id": "tutorialMove",
+      "section": "esophagus",
+      "start": 4,
+      "duration": 14,
+      "type": "collectAny",
+      "count": 1,
+      "title": "Подбери воду",
+      "hint": "Выйди на траекторию воды — она восстанавливает щит",
+      "spawn": [
+        "water"
+      ],
+      "reward": 300
+    },
+    {
+      "id": "tutorialShoot",
+      "section": "esophagus",
+      "start": 20,
+      "duration": 22,
+      "type": "shoot",
+      "count": 1,
+      "title": "Первая мишень",
+      "hint": "Совмести прицел с микробом-помехой и запусти импульс",
+      "spawn": [
+        "microbe"
+      ],
+      "reward": 300
+    },
+    {
+      "id": "variety1",
+      "section": "stomach",
+      "start": 50,
+      "duration": 40,
+      "type": "deliverCategories",
+      "count": 2,
+      "title": "Разные запасы",
+      "hint": "Собери две разные категории и доставь их в шлюз. Два яблока — это одна категория",
+      "spawn": [
+        "apple",
+        "kefir",
+        "oats",
+        "apple"
+      ],
+      "reward": 300
+    },
+    {
+      "id": "narrow1",
+      "section": "stomach",
+      "start": 100,
+      "duration": 28,
+      "type": "shieldChoice",
+      "title": "Перед узким участком",
+      "hint": "Щит ниже 60 — бери воду. Щит полный — бери продукт для груза",
+      "spawn": [
+        "water",
+        "veggies",
+        "water",
+        "kefir"
+      ],
+      "reward": 300,
+      "spawnDelay": 6
+    },
+    {
+      "id": "precision1",
+      "section": "smallIntestine",
+      "start": 140,
+      "duration": 35,
+      "type": "shoot",
+      "count": 2,
+      "title": "Точный импульс",
+      "hint": "Порази две помехи. Жители микромира — не цель",
+      "spawn": [
+        "microbe",
+        "resident",
+        "microbe",
+        "resident"
+      ],
+      "reward": 300
+    },
+    {
+      "id": "variety2",
+      "section": "smallIntestine",
+      "start": 180,
+      "duration": 40,
+      "type": "deliverCategories",
+      "count": 3,
+      "title": "Полный набор",
+      "hint": "Три разные категории в одном грузе дают бонус разнообразия",
+      "spawn": [
+        "veggies",
+        "berries",
+        "bread",
+        "smetana",
+        "candy"
+      ],
+      "reward": 300,
+      "gates": [
+        32
+      ]
+    },
+    {
+      "id": "capsule1",
+      "section": "smallIntestine",
+      "start": 222,
+      "duration": 30,
+      "type": "deliverCapsule",
+      "title": "Особый груз",
+      "hint": "Шлюз освободит отсек. Оставь одну ячейку свободной и довези капсулу «Клетчатка» до следующего шлюза",
+      "spawn": [
+        "capsule"
+      ],
+      "reward": 300,
+      "spawnDelay": 9,
+      "gates": [
+        19
+      ]
+    },
+    {
+      "id": "precision2",
+      "section": "microworld",
+      "start": 262,
+      "duration": 25,
+      "type": "shoot",
+      "count": 3,
+      "title": "Чистая траектория",
+      "hint": "Три помехи среди жителей микромира. Попадание по жителю сбрасывает комбо",
+      "spawn": [
+        "microbe",
+        "resident",
+        "microbe",
+        "resident",
+        "microbe"
+      ],
+      "reward": 300
+    },
+    {
+      "id": "capsule2",
+      "section": "microworld",
+      "start": 288,
+      "duration": 30,
+      "type": "deliverCapsule",
+      "title": "Доставка в микромир",
+      "hint": "Довези капсулу «Клетчатка» до шлюза микромира",
+      "spawn": [
+        "capsule",
+        "water"
+      ],
+      "reward": 300,
+      "spawnDelay": 4,
+      "gates": [
+        18
+      ]
+    },
+    {
+      "id": "final",
+      "section": "microworld",
+      "start": 332,
+      "duration": 26,
+      "type": "final",
+      "count": 2,
+      "deliverCount": 1,
+      "title": "Последний участок",
+      "hint": "Порази две помехи и доставь любой продукт в финальный шлюз",
+      "spawn": [
+        "microbe",
+        "apple",
+        "resident",
+        "microbe",
+        "kefir"
+      ],
+      "reward": 300
+    }
+  ]
+}

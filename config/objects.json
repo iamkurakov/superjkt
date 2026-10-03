@@ -1,0 +1,50 @@
+{
+  "categories": {
+    "dairyFermented": { "name": "Кисломолочные", "color": "#9ED7FF" },
+    "fruit": { "name": "Фрукты", "color": "#FF6B6B" },
+    "grain": { "name": "Зерновые", "color": "#F2C66D" },
+    "veg": { "name": "Овощи и бобовые", "color": "#6FD66F" },
+    "dairy": { "name": "Другие молочные", "color": "#FFF1C9" },
+    "sweet": { "name": "Сладкое", "color": "#FF9BE6" }
+  },
+  "objects": {
+    "water":    { "name": "Вода",        "kind": "resource", "icon": "💧", "shield": 20, "cargo": 0, "score": 50, "bubble": "#7FD4FF" },
+    "kefir":    { "name": "Кефир",       "kind": "food", "icon": "🥛", "energy": 10, "cargo": 1, "category": "dairyFermented", "score": 50, "bubble": "#BEE6FF" },
+    "yogurt":   { "name": "Йогурт",      "kind": "food", "icon": "🍶", "energy": 10, "cargo": 1, "category": "dairyFermented", "score": 50, "bubble": "#BEE6FF" },
+    "apple":    { "name": "Яблоко",      "kind": "food", "icon": "🍎", "energy": 10, "cargo": 1, "category": "fruit", "score": 50, "bubble": "#FFC2C2" },
+    "pear":     { "name": "Груша",       "kind": "food", "icon": "🍐", "energy": 10, "cargo": 1, "category": "fruit", "score": 50, "bubble": "#D8F5B0" },
+    "berries":  { "name": "Ягоды",       "kind": "food", "icon": "🫐", "energy": 10, "cargo": 1, "category": "fruit", "score": 50, "bubble": "#C9C2FF" },
+    "oats":     { "name": "Овсянка",     "kind": "food", "icon": "🥣", "energy": 10, "cargo": 1, "category": "grain", "score": 50, "bubble": "#FFE6B3" },
+    "bread":    { "name": "Цельнозерновой хлеб", "kind": "food", "icon": "🍞", "energy": 10, "cargo": 1, "category": "grain", "score": 50, "bubble": "#FFE6B3" },
+    "veggies":  { "name": "Овощи",       "kind": "food", "icon": "🥦", "energy": 10, "cargo": 1, "category": "veg", "score": 50, "bubble": "#C6F5C6" },
+    "beans":    { "name": "Бобовые",     "kind": "food", "icon": "🫘", "energy": 10, "cargo": 1, "category": "veg", "score": 50, "bubble": "#C6F5C6" },
+    "smetana":  { "name": "Сметана",     "kind": "food", "icon": "🥄", "energy": 10, "cargo": 1, "category": "dairy", "score": 50, "bubble": "#FFF7DD" },
+    "candy":    { "name": "Конфета",     "kind": "food", "icon": "🍬", "energy": 10, "cargo": 1, "category": "sweet", "score": 50, "bubble": "#FFD1F2" },
+    "lemonade": { "name": "Лимонад",     "kind": "food", "icon": "🥤", "energy": 10, "cargo": 1, "category": "sweet", "score": 50, "bubble": "#FFD1F2" },
+    "capsule":  { "name": "Капсула «Клетчатка»", "kind": "special", "icon": "💊", "cargo": 1, "score": 0, "bubble": "#B8FFE0" },
+    "microbe":  { "name": "Микроб-помеха", "kind": "target", "icon": "👾", "score": 100, "damage": 15, "bubble": "#C98BFF" },
+    "resident": { "name": "Житель микромира", "kind": "resident", "icon": "🐙", "score": 0, "penalty": 50, "bubble": "#8BFFC9" },
+    "obstacle": { "name": "Сгусток",     "kind": "obstacle", "icon": "🪨", "damage": 15, "bubble": "#F5B6A2" }
+  },
+  "balance": {
+    "shieldStart": 100,
+    "energyStart": 60,
+    "pulseEnergy": 5,
+    "energyRegen": 2,
+    "fireRate": 2,
+    "collisionDamage": 15,
+    "invulnerableAfterHit": 1.5,
+    "cargoSlots": 3,
+    "pickupScore": 50,
+    "targetScore": 100,
+    "missionScore": 300,
+    "varietyBonus": 200,
+    "deliveryScore": 50,
+    "comboThreshold": 5,
+    "comboMultiplier": 2,
+    "emergencyDuration": 5,
+    "emergencyShield": 50,
+    "emergencyPenalty": 300,
+    "residentPenalty": 50
+  }
+}

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0B2A55">
+  <meta name="description" content="СУПЕР ЖКТ — аркадный полёт внутри организма. Браузерная игра для смартфонов и компьютеров.">
+  <meta property="og:title" content="СУПЕР ЖКТ">
+  <meta property="og:description" content="Аркадный полёт внутри организма. Фантастическое путешествие, эффекты предметов условны.">
+  <meta property="og:image" content="assets/keyart.webp">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>СУПЕР ЖКТ</title>
+  <link rel="icon" href="assets/logo.png" type="image/png">
+  <link rel="apple-touch-icon" href="assets/logo.png">
+  <link rel="preload" href="assets/hero.webp" as="image">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app" class="app">
+
+    <!-- Стартовый экран -->
+    <section id="screen-start" class="screen screen-start active">
+      <div class="start-hero" aria-hidden="true"></div>
+      <div class="start-content">
+        <div class="logo-plate"><img id="brand-logo" src="assets/logo.png" alt="Логотип клиники"></div>
+        <h1 class="game-title"><span class="t1">Супер</span><span class="t2">ЖКТ</span></h1>
+        <p class="subtitle" data-text="start.subtitle">Аркадный полёт внутри организма</p>
+        <div class="start-buttons">
+          <button id="btn-play" class="btn btn-primary btn-xl" data-text="start.play">Начать полёт</button>
+          <button id="btn-howto" class="btn btn-ghost" data-text="start.howTo">Как играть</button>
+        </div>
+        <div class="start-options">
+          <button id="btn-tilt" class="btn btn-chip" hidden>
+            <span class="chip-icon">📱</span><span class="chip-label" data-text="start.tiltOn">Управление наклонами</span>
+          </button>
+          <button id="btn-sound" class="btn btn-chip" aria-pressed="true">
+            <span class="chip-icon">🔊</span><span class="chip-label" data-text="start.sound">Звук</span>
+          </button>
+        </div>
+        <p id="best-line" class="best-line" hidden><span data-text="start.best">Лучший результат</span>: <b id="best-score">0</b></p>
+        <p class="disclaimer" data-text="start.disclaimer">Фантастическое путешествие. Эффекты предметов условны.</p>
+      </div>
+    </section>
+
+    <!-- Как играть -->
+    <section id="screen-howto" class="screen overlay">
+      <div class="panel">
+        <h2 data-text="howTo.title">Как играть</h2>
+        <ol id="howto-list" class="howto-list"></ol>
+        <button id="btn-howto-close" class="btn btn-primary" data-text="howTo.close">Понятно</button>
+      </div>
+    </section>
+
+    <!-- Игра -->
+    <section id="screen-game" class="screen screen-game">
+      <canvas id="game-canvas"></canvas>
+
+      <div class="cockpit" aria-hidden="true">
+        <div class="strut strut-left"></div>
+        <div class="strut strut-right"></div>
+      </div>
+
+      <div class="hud hud-top">
+        <div class="hud-brand">
+          <img src="assets/logo.png" alt="" class="hud-logo">
+          <span class="hud-title"><span class="t1">Супер</span><span class="t2">ЖКТ</span></span>
+        </div>
+        <div id="hud-mission" class="hud-mission">
+          <div class="mission-main">
+            <span id="mission-icon" class="mission-icon">🎯</span>
+            <span id="mission-title" class="mission-title">—</span>
+            <span id="mission-progress" class="mission-progress"></span>
+          </div>
+          <div id="mission-hint" class="mission-hint"></div>
+          <div class="mission-bar"><i id="mission-bar-fill"></i></div>
+        </div>
+        <div class="hud-right">
+          <div class="hud-timer"><span class="ico">⏱</span><span id="hud-time">06:00</span></div>
+          <div id="hud-section" class="hud-section">Пищевод</div>
+          <button id="btn-pause" class="btn-icon" aria-label="Пауза">❚❚</button>
+        </div>
+      </div>
+
+      <div id="toast" class="toast" aria-live="polite"></div>
+      <div id="score-pop" class="score-pop"></div>
+
+      <div class="hud hud-bottom">
+        <div class="dash">
+          <div class="gauge">
+            <div class="gauge-label">🛡 <span data-text="hud.shield">Щит</span></div>
+            <div id="g-shield" class="gauge-value">100</div>
+            <div class="gauge-bar"><i id="g-shield-fill" class="fill-shield"></i></div>
+          </div>
+          <div class="gauge">
+            <div class="gauge-label">⚡ <span data-text="hud.energy">Энергия</span></div>
+            <div id="g-energy" class="gauge-value">60</div>
+            <div class="gauge-bar"><i id="g-energy-fill" class="fill-energy"></i></div>
+          </div>
+          <div class="gauge">
+            <div class="gauge-label">📦 <span data-text="hud.cargo">Груз</span></div>
+            <div id="g-cargo" class="gauge-value">0/3</div>
+            <div id="cargo-cells" class="cargo-cells"></div>
+          </div>
+          <div class="gauge gauge-score">
+            <div class="gauge-label">★ <span data-text="hud.score">Очки</span></div>
+            <div id="g-score" class="gauge-value">0</div>
+            <div id="g-combo" class="combo"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="joystick" class="joystick" aria-hidden="true">
+        <div class="joy-base"><div id="joy-knob" class="joy-knob"></div></div>
+      </div>
+      <button id="btn-fire" class="btn-fire" aria-label="Импульс"><span>◎</span></button>
+
+      <div id="tilt-overlay" class="tilt-overlay" hidden>
+        <div class="tilt-card"><span class="tilt-icon">📱</span><p id="tilt-text">Держи телефон удобно — так он будет лететь прямо</p></div>
+      </div>
+    </section>
+
+    <!-- Пауза -->
+    <section id="screen-pause" class="screen overlay">
+      <div class="panel">
+        <h2 data-text="pause.title">Пауза</h2>
+        <div class="panel-buttons">
+          <button id="btn-resume" class="btn btn-primary btn-xl" data-text="pause.resume">Продолжить</button>
+          <button id="btn-restart" class="btn btn-ghost" data-text="pause.restart">Начать заново</button>
+          <button id="btn-quit" class="btn btn-ghost" data-text="pause.quit">В меню</button>
+          <button id="btn-sound-pause" class="btn btn-chip" aria-pressed="true"><span class="chip-icon">🔊</span><span class="chip-label" data-text="start.sound">Звук</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Результат -->
+    <section id="screen-result" class="screen overlay">
+      <div class="panel panel-result">
+        <div class="logo-plate small"><img src="assets/logo.png" alt="Логотип клиники"></div>
+        <h2 data-text="result.title">Полёт завершён</h2>
+        <div id="result-stars" class="stars">☆☆☆</div>
+        <div id="result-newbest" class="newbest" hidden data-text="result.newBest">Новый рекорд!</div>
+        <div class="result-grid">
+          <div class="rcell"><span class="rlabel" data-text="result.score">Очки</span><b id="r-score">0</b></div>
+          <div class="rcell"><span class="rlabel" data-text="result.missions">Задания</span><b id="r-missions">0/0</b></div>
+          <div class="rcell"><span class="rlabel" data-text="result.accuracy">Точность стрельбы</span><b id="r-accuracy">0%</b></div>
+          <div class="rcell rcell-wide"><span class="rlabel" data-text="result.categories">Собранные категории</span><b id="r-categories">—</b></div>
+        </div>
+        <div class="panel-buttons">
+          <button id="btn-replay" class="btn btn-primary btn-xl" data-text="result.replay">Ещё раз</button>
+          <button id="btn-menu" class="btn btn-ghost" data-text="result.menu">В меню</button>
+        </div>
+        <a id="btn-site" class="btn btn-site" href="#" target="_blank" rel="noopener">На сайт клиники</a>
+        <p class="disclaimer" data-text="start.disclaimer">Фантастическое путешествие. Эффекты предметов условны.</p>
+      </div>
+    </section>
+
+    <div id="loading" class="loading"><div class="spinner"></div><span>Загрузка…</span></div>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

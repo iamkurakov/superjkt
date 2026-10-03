@@ -1,0 +1,13 @@
+{
+  "gameTitle": "СУПЕР ЖКТ",
+  "clinicName": "АСКО-МЕД+",
+  "logo": "assets/logo.png",
+  "siteUrl": "https://askomed.ru",
+  "siteButtonText": "На сайт клиники",
+  "colors": {
+    "primary": "#055FAA",
+    "accent": "#DD2A1B",
+    "light": "#E8F2FB",
+    "dark": "#0B2A55"
+  }
+}
