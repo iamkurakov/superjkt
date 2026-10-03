@@ -1,7 +1,7 @@
 // Отрисовка сцены: перспективный тоннель, объекты в капсулах, шлюзы, импульсы, частицы, прицел.
-import { Z_FAR } from './game.js';
-import { drawShip } from './ship.js';
-import { drawIntro } from './intro.js';
+import { Z_FAR } from './game.js?v=2026.10.03-4';
+import { drawShip } from './ship.js?v=2026.10.03-4';
+import { drawIntro } from './intro.js?v=2026.10.03-4';
 
 const RING_STEP = 6;
 

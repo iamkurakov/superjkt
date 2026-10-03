@@ -1,17 +1,18 @@
 // Точка входа: загрузка конфигов, экраны, HUD, игровой цикл.
-import { Game } from './game.js';
-import { Renderer } from './render.js';
-import { Input } from './input.js';
-import { GameAudio } from './audio.js';
-import { Music } from './music.js';
-import { INTRO_DURATION } from './intro.js';
-import { storage } from './storage.js';
-import { track } from './analytics.js';
+import { Game } from './game.js?v=2026.10.03-4';
+import { Renderer } from './render.js?v=2026.10.03-4';
+import { Input } from './input.js?v=2026.10.03-4';
+import { GameAudio } from './audio.js?v=2026.10.03-4';
+import { Music } from './music.js?v=2026.10.03-4';
+import { INTRO_DURATION } from './intro.js?v=2026.10.03-4';
+import { storage } from './storage.js?v=2026.10.03-4';
+import { track } from './analytics.js?v=2026.10.03-4';
 
 const $ = (id) => document.getElementById(id);
+const APP_VERSION = (new URL(import.meta.url)).searchParams.get('v') || 'dev';
 
 async function loadJson(path) {
-  const r = await fetch(path, { cache: 'no-cache' });
+  const r = await fetch(`${path}?v=${APP_VERSION}`, { cache: 'no-cache' });
   if (!r.ok) throw new Error(`${path}: ${r.status}`);
   return r.json();
 }
@@ -480,7 +481,8 @@ async function boot() {
   window.addEventListener('orientationchange', () => setTimeout(onResize, 150));
   if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
 
-  window.__superjkt = { game, renderer, input };
+  window.__superjkt = { game, renderer, input, version: APP_VERSION };
+  const vEl = $('app-version'); if (vEl) vEl.textContent = APP_VERSION;
   $('loading').hidden = true;
   show('start');
   track('launch');
