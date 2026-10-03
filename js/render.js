@@ -31,6 +31,10 @@ export class Renderer {
     this.lowPerf = false;
     this._frameTimes = [];
     this.fadeIn = 0; // затемнение после интро
+    this.cracks = []; // трещины на стекле кабины после удара
+    this.shockwaves = [];
+    this.streaks = Array.from({ length: 26 }, (_, i) => ({ a: (i / 26) * Math.PI * 2 + Math.random(), d: Math.random(), sp: 0.6 + Math.random() * 0.8 }));
+    this.trail = [];
     this.logoImg = null;
     this.resize();
   }
@@ -65,7 +69,25 @@ export class Renderer {
   }
   pulse(tx, ty) { this.pulses.push({ x1: tx, y1: ty, age: 0 }); }
   floater(x, y, text, color = '#FFD23F') { this.floaters.push({ x, y, text, color, age: 0 }); }
-  damageFlash() { this.lastDamage = this.game.t; this.shake = 1; }
+  damageFlash() {
+    this.lastDamage = this.game.t; this.shake = 1.6;
+    // Трещины на стекле (вид из кабины)
+    const w = this.w, h = this.h;
+    const cx = w / 2 + (Math.random() - 0.5) * w * 0.6, cy = h / 2 + (Math.random() - 0.5) * h * 0.5;
+    const lines = [];
+    const n = 7 + Math.floor(Math.random() * 5);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.6;
+      const len = Math.min(w, h) * (0.12 + Math.random() * 0.25);
+      const pts = [[cx, cy]];
+      let px = cx, py = cy, aa = a;
+      for (let k = 0; k < 4; k++) { aa += (Math.random() - 0.5) * 0.7; px += Math.cos(aa) * len / 4; py += Math.sin(aa) * len / 4; pts.push([px, py]); }
+      lines.push(pts);
+    }
+    this.cracks.push({ lines, born: this.game.t });
+    if (this.cracks.length > 3) this.cracks.shift();
+  }
+  shockwave(x, y, color = '#FFFFFF') { this.shockwaves.push({ x, y, age: 0, color }); }
 
   // Текст значка над объектом
   _badge(o) {
@@ -97,19 +119,25 @@ export class Renderer {
 
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     if (this.shake > 0) {
-      this.shake = Math.max(0, this.shake - dt * 4);
-      ctx.translate((Math.random() - 0.5) * 12 * this.shake, (Math.random() - 0.5) * 12 * this.shake);
+      this.shake = Math.max(0, this.shake - dt * 3.2);
+      const amp = 18 * this.shake;
+      ctx.translate((Math.random() - 0.5) * amp, (Math.random() - 0.5) * amp);
+      ctx.rotate((Math.random() - 0.5) * 0.02 * this.shake);
     }
 
     this._drawTunnel();
+    this._drawStreaks(dt);
     this._drawGuide();
     this._drawObjects();
-    if (g.view === 'third') this._drawShip();
+    this._drawThreats();
+    if (g.view === 'third') { this._drawTrail(dt); this._drawShip(); }
     this._drawPulses(dt);
+    this._drawShockwaves(dt);
     this._drawParticles(dt);
     this._drawFloaters(dt);
     this._drawCrosshair();
     this._drawEffects();
+    if (g.view === 'first') this._drawCracks();
     if (this.fadeIn > 0) {
       this.fadeIn = Math.max(0, this.fadeIn - dt * 1.2);
       ctx.fillStyle = `rgba(20,4,8,${this.fadeIn})`;
@@ -129,7 +157,7 @@ export class Renderer {
     ctx.beginPath(); ctx.ellipse(p.sx, p.sy + size * 1.4, size * 1.1, size * 0.3, 0, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
     if (g.isInvulnerable() && Math.sin(g.t * 24) > 0) ctx.globalAlpha = 0.55;
-    drawShip(ctx, p.sx, p.sy, size, bank, g.t, { glow: 1 + Math.hypot(g.vx, g.vy) * 0.2 });
+    drawShip(ctx, p.sx, p.sy, size, bank, g.t, { glow: 1 + Math.hypot(g.vx, g.vy) * 0.25, pitch: g.pitch });
     ctx.globalAlpha = 1;
     if (g.isEmergency()) {
       ctx.strokeStyle = `rgba(69,214,255,${0.5 + 0.3 * Math.sin(g.t * 12)})`; ctx.lineWidth = 3;
@@ -337,6 +365,104 @@ export class Renderer {
     ctx.restore();
   }
 
+  // Линии скорости у стенок тоннеля
+  _drawStreaks(dt) {
+    const g = this.game, ctx = this.ctx, w = this.w, h = this.h;
+    const c0 = g.project(0, 0, 0, w, h), cf = g.project(0, 0, 40, w, h);
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (const st of this.streaks) {
+      st.d += dt * st.sp * (g.t < g.slowUntil ? 0.4 : 1);
+      if (st.d > 1) { st.d -= 1; st.a = Math.random() * Math.PI * 2; }
+      const z1 = (1 - st.d) * 40, z2 = Math.min(40, z1 + 6);
+      const p1 = g.project(0, 0, z1, w, h), p2 = g.project(0, 0, z2, w, h);
+      const r1 = p1.R * p1.scale * 0.93, r2 = p2.R * p2.scale * 0.93;
+      const x1 = p1.sx + Math.cos(st.a) * r1, y1 = p1.sy + Math.sin(st.a) * r1 * 0.92;
+      const x2 = p2.sx + Math.cos(st.a) * r2, y2 = p2.sy + Math.sin(st.a) * r2 * 0.92;
+      ctx.strokeStyle = `rgba(255,255,255,${0.35 * st.d * (1 - st.d) * 4 * 0.5})`;
+      ctx.lineWidth = Math.max(1, 3 * p1.scale);
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    }
+    ctx.restore();
+    void c0; void cf;
+  }
+
+  // Предупреждающие маркеры над опасностями на курсе
+  _drawThreats() {
+    const g = this.game, ctx = this.ctx, w = this.w, h = this.h;
+    const list = g.threats();
+    if (!list.length) return;
+    const pulse = 0.6 + 0.4 * Math.sin(g.t * 14);
+    for (const o of list) {
+      const p = g.project(o.x, o.y, o.z, w, h);
+      const size = o.size * p.R * p.scale;
+      ctx.save();
+      ctx.translate(p.sx, p.sy - size * 1.9 - 12);
+      ctx.fillStyle = `rgba(221,42,27,${pulse})`;
+      ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(13, 10); ctx.lineTo(-13, 10); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = '900 14px Arial, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('!', 0, 1);
+      ctx.restore();
+      // Красное кольцо вокруг опасности
+      ctx.strokeStyle = `rgba(255,74,61,${0.5 * pulse})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(p.sx, p.sy, size * 1.6, 0, Math.PI * 2); ctx.stroke();
+    }
+    // Краевое свечение, когда опасность совсем близко
+    const near = list.filter((o) => o.z < 12).length;
+    if (near) {
+      const gr = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.7);
+      gr.addColorStop(0, 'rgba(221,42,27,0)'); gr.addColorStop(1, `rgba(221,42,27,${0.25 * pulse})`);
+      ctx.fillStyle = gr; ctx.fillRect(0, 0, w, h);
+    }
+  }
+
+  _drawTrail(dt) {
+    const g = this.game, ctx = this.ctx, w = this.w, h = this.h;
+    const p = g.shipScreen(w, h);
+    const size = Math.min(w, h) * 0.105;
+    for (const ex of [-0.46, 0.46]) {
+      this.trail.push({ x: p.sx + Math.cos(g.bank) * ex * size - Math.sin(g.bank) * 0.5 * size, y: p.sy + Math.sin(g.bank) * ex * size + Math.cos(g.bank) * 0.5 * size, age: 0 });
+    }
+    if (this.trail.length > 70) this.trail.splice(0, this.trail.length - 70);
+    for (const t of this.trail) {
+      t.age += dt; t.y += dt * 140; // уходит назад (вниз-к камере)
+      const k = Math.max(0, 1 - t.age / 0.45);
+      ctx.fillStyle = `rgba(69,214,255,${0.35 * k})`;
+      ctx.beginPath(); ctx.arc(t.x, t.y, size * 0.16 * (1 + t.age * 2), 0, Math.PI * 2); ctx.fill();
+    }
+    this.trail = this.trail.filter((t) => t.age < 0.45);
+  }
+
+  _drawShockwaves(dt) {
+    const ctx = this.ctx;
+    this.shockwaves = this.shockwaves.filter((s) => (s.age += dt) < 0.5);
+    for (const s of this.shockwaves) {
+      const k = s.age / 0.5;
+      ctx.strokeStyle = s.color; ctx.globalAlpha = 1 - k; ctx.lineWidth = 6 * (1 - k) + 1;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 10 + k * 120, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  _drawCracks() {
+    const g = this.game, ctx = this.ctx;
+    if (!this.cracks.length) return;
+    this.cracks = this.cracks.filter((c) => g.t - c.born < 2.6);
+    for (const c of this.cracks) {
+      const k = 1 - (g.t - c.born) / 2.6;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, k * 1.5);
+      ctx.lineCap = 'round';
+      for (const pts of c.lines) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.stroke();
+        ctx.strokeStyle = 'rgba(20,40,70,0.55)'; ctx.lineWidth = 0.8;
+        ctx.beginPath(); ctx.moveTo(pts[0][0] + 1, pts[0][1] + 1); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0] + 1, pts[i][1] + 1); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
   _drawPulses(dt) {
     const ctx = this.ctx, w = this.w, h = this.h;
     let x0 = w / 2, y0 = h * 0.98, spread = 40;
@@ -430,11 +556,15 @@ export class Renderer {
   _drawEffects() {
     const g = this.game, ctx = this.ctx, w = this.w, h = this.h;
     const sinceDmg = g.t - this.lastDamage;
-    if (sinceDmg < 0.45) {
-      const a = 0.55 * (1 - sinceDmg / 0.45);
-      const gr = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.3, w / 2, h / 2, Math.max(w, h) * 0.75);
-      gr.addColorStop(0, 'rgba(221,42,27,0)'); gr.addColorStop(1, `rgba(221,42,27,${a})`);
-      ctx.fillStyle = gr; ctx.fillRect(0, 0, w, h);
+    if (sinceDmg < 0.7) {
+      const a = 0.8 * (1 - sinceDmg / 0.7);
+      const gr = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.2, w / 2, h / 2, Math.max(w, h) * 0.75);
+      gr.addColorStop(0, `rgba(221,42,27,${a * 0.25})`); gr.addColorStop(1, `rgba(160,10,10,${a})`);
+      ctx.fillStyle = gr; ctx.fillRect(-20, -20, w + 40, h + 40);
+      // Радиальные полосы удара
+      ctx.save(); ctx.translate(w / 2, h / 2); ctx.globalAlpha = a * 0.5; ctx.strokeStyle = '#FF6B5E'; ctx.lineWidth = 3;
+      for (let i = 0; i < 14; i++) { const an = i * Math.PI * 2 / 14 + sinceDmg * 2; ctx.beginPath(); ctx.moveTo(Math.cos(an) * Math.min(w, h) * 0.3, Math.sin(an) * Math.min(w, h) * 0.3); ctx.lineTo(Math.cos(an) * Math.max(w, h), Math.sin(an) * Math.max(w, h)); ctx.stroke(); }
+      ctx.restore();
     }
     if (g.isEmergency()) {
       const a = 0.25 + 0.2 * Math.sin(g.t * 12);

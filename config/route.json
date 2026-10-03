@@ -6,12 +6,21 @@
     {
       "id": "esophagus",
       "name": "Пищевод",
-      "colors": { "wall": "#F08A7A", "deep": "#C4473C", "glow": "#FFC3B4", "accent": "#FFE0D6" },
+      "colors": {
+        "wall": "#F08A7A",
+        "deep": "#C4473C",
+        "glow": "#FFC3B4",
+        "accent": "#FFE0D6"
+      },
       "curve": 0.25,
-      "damage": false,
+      "damage": 8,
       "spawnInterval": 2.6,
       "maxVisible": 2,
-      "objectPool": ["water", "apple", "kefir"],
+      "objectPool": [
+        "water",
+        "apple",
+        "kefir"
+      ],
       "targetRate": 0.25,
       "residentRate": 0.0,
       "obstacleRate": 0.0
@@ -19,12 +28,25 @@
     {
       "id": "stomach",
       "name": "Желудок",
-      "colors": { "wall": "#F27D6F", "deep": "#B8362C", "glow": "#FFB9A6", "accent": "#FFD9CC" },
+      "colors": {
+        "wall": "#F27D6F",
+        "deep": "#B8362C",
+        "glow": "#FFB9A6",
+        "accent": "#FFD9CC"
+      },
       "curve": 0.35,
-      "damage": true,
+      "damage": 15,
       "spawnInterval": 2.0,
       "maxVisible": 3,
-      "objectPool": ["water", "apple", "kefir", "oats", "veggies", "candy", "smetana"],
+      "objectPool": [
+        "water",
+        "apple",
+        "kefir",
+        "oats",
+        "veggies",
+        "candy",
+        "smetana"
+      ],
       "targetRate": 0.3,
       "residentRate": 0.05,
       "obstacleRate": 0.1
@@ -32,12 +54,27 @@
     {
       "id": "smallIntestine",
       "name": "Тонкий кишечник",
-      "colors": { "wall": "#F2A08E", "deep": "#C25A49", "glow": "#FFD2C2", "accent": "#FFE9DF" },
+      "colors": {
+        "wall": "#F2A08E",
+        "deep": "#C25A49",
+        "glow": "#FFD2C2",
+        "accent": "#FFE9DF"
+      },
       "curve": 0.7,
-      "damage": true,
+      "damage": 15,
       "spawnInterval": 1.7,
       "maxVisible": 3,
-      "objectPool": ["water", "apple", "kefir", "oats", "veggies", "candy", "smetana", "berries", "bread"],
+      "objectPool": [
+        "water",
+        "apple",
+        "kefir",
+        "oats",
+        "veggies",
+        "candy",
+        "smetana",
+        "berries",
+        "bread"
+      ],
       "targetRate": 0.35,
       "residentRate": 0.12,
       "obstacleRate": 0.15
@@ -45,12 +82,28 @@
     {
       "id": "microworld",
       "name": "Толстый кишечник · Микромир",
-      "colors": { "wall": "#8E63C8", "deep": "#3C2466", "glow": "#7BE3A9", "accent": "#C8F5DB" },
+      "colors": {
+        "wall": "#8E63C8",
+        "deep": "#3C2466",
+        "glow": "#7BE3A9",
+        "accent": "#C8F5DB"
+      },
       "curve": 0.6,
-      "damage": true,
+      "damage": 15,
       "spawnInterval": 1.5,
       "maxVisible": 3,
-      "objectPool": ["water", "apple", "kefir", "oats", "veggies", "candy", "smetana", "berries", "bread", "pear"],
+      "objectPool": [
+        "water",
+        "apple",
+        "kefir",
+        "oats",
+        "veggies",
+        "candy",
+        "smetana",
+        "berries",
+        "bread",
+        "pear"
+      ],
       "targetRate": 0.4,
       "residentRate": 0.25,
       "obstacleRate": 0.15

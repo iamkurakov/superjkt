@@ -54,7 +54,6 @@ async function boot() {
   const game = new Game(cfg);
   const renderer = new Renderer(canvas, game, texts);
   renderer.logoImg = new Image(); renderer.logoImg.src = brand.logo;
-  game.bonusInterval = brand.bonusIntervalSeconds || 60;
   const audio = new GameAudio();
   const music = new Music(() => audio.ctx, { volume: 0.11 });
   const input = new Input({ canvas, joystickEl: $('joystick'), knobEl: $('joy-knob'), fireBtn: $('btn-fire') });
@@ -141,29 +140,35 @@ async function boot() {
   function toggleView() { view = view === 'third' ? 'first' : 'third'; storage.setView(view); applyView(); toast(`${texts.hud.view}: ${view === 'third' ? texts.hud.viewThird : texts.hud.viewFirst}`, '', 1000); track('view', { view }); }
   $('btn-view').addEventListener('click', toggleView);
 
-  // ---- Бонусы от клиники ----
+  // ---- Бонусы от клиники: окно после каждого чекпоинта (кольца в конце раунда) ----
   const bonusPool = (brand.bonuses || []).slice();
   let bonusBag = [];
   const bonusPopup = $('bonus-popup');
-  let bonusTimer = 0;
-  let pendingBonus = false;
-  function flushPendingBonus() { if (!pendingBonus) return; pendingBonus = false; setTimeout(() => showBonus(true), 600); }
-  function showBonus(force = false) {
-    if (!bonusPool.length) return;
-    // Если сейчас карточка раунда — покажем бонус после неё
-    if (!force && (game.between || !roundOverlay.hidden)) { pendingBonus = true; return; }
+  let bonusTimer = 0, bonusOnClose = null;
+  function showBonus(onClose) {
+    if (!bonusPool.length) { if (onClose) onClose(); return; }
     if (!bonusBag.length) bonusBag = bonusPool.slice().sort(() => Math.random() - 0.5);
     const text = bonusBag.pop();
     game.bonuses.push(text);
     $('bonus-text').textContent = text;
+    bonusOnClose = onClose || null;
     bonusPopup.hidden = false;
     audio.gate();
+    vibrate([30, 40, 60]);
     clearTimeout(bonusTimer);
-    bonusTimer = setTimeout(hideBonus, 6000);
+    bonusTimer = setTimeout(hideBonus, 7000);
     track('bonus', { text });
   }
-  function hideBonus() { clearTimeout(bonusTimer); bonusPopup.hidden = true; }
+  function hideBonus() {
+    clearTimeout(bonusTimer);
+    if (bonusPopup.hidden) return;
+    bonusPopup.hidden = true;
+    const cb = bonusOnClose; bonusOnClose = null;
+    if (cb) cb();
+  }
   $('btn-bonus-close').addEventListener('click', hideBonus);
+  bonusPopup.addEventListener('click', (e) => { if (e.target === bonusPopup) hideBonus(); });
+  function vibrate(pattern) { try { if (navigator.vibrate && input.isTouch) navigator.vibrate(pattern); } catch (e) { /* игнорируем */ } }
 
   // ---- HUD ----
   const hud = {
@@ -256,7 +261,6 @@ async function boot() {
     roundOverlay.hidden = true;
     if (input.tilt.enabled) input.calibrateTilt();
     game.nextRound();
-    flushPendingBonus();
   }
   $('btn-round-next').addEventListener('click', advanceRound);
   roundOverlay.addEventListener('click', (e) => { if (e.target === roundOverlay) advanceRound(); });
@@ -280,7 +284,9 @@ async function boot() {
       renderStrip(hud.strip);
       if (ev.won) audio.mission(); else audio.fail();
       track(ev.won ? 'round_won' : 'round_lost', { round: ev.round.def.id });
-      showRoundEnd(ev);
+      input.reset();
+      toast(texts.hud.checkpoint, 'good', 1200);
+      setTimeout(() => showBonus(() => showRoundEnd(ev)), 700);
     }
   });
   game.on('pickup', ({ obj, text }) => {
@@ -294,7 +300,18 @@ async function boot() {
     renderer.burst(p.sx, p.sy, '#FFB199', soft ? 6 : 12, 120);
     if (soft && obj.kind !== 'food' && obj.kind !== 'special') { renderer.shake = 0.4; }
   });
-  game.on('damage', () => { renderer.damageFlash(); audio.damage(); });
+  game.on('damage', ({ obj, amount, shield }) => {
+    renderer.damageFlash();
+    audio.damage();
+    vibrate([120, 40, 80]);
+    const p = game.project(obj.x, obj.y, Math.max(obj.z, 0.6), W(), H());
+    renderer.burst(p.sx, p.sy, obj.kind === 'target' ? '#C98BFF' : '#FFB199', 26, 320);
+    renderer.burst(p.sx, p.sy, '#FF4A3D', 14, 220);
+    renderer.shockwave(p.sx, p.sy, '#FF4A3D');
+    renderer.floater(W() / 2, H() * 0.4, `−${amount} ${texts.hud.hitShield}`, '#FF4A3D');
+    const gauge = hud.shield.parentElement; gauge.classList.remove('hit'); void gauge.offsetWidth; gauge.classList.add('hit');
+    if (shield <= 0) toast(texts.hud.shieldBroken, 'warn', 1600);
+  });
   game.on('emergency', () => { audio.emergency(); track('emergency'); });
   game.on('shoot', ({ target }) => { renderer.pulse(target.x, target.y); audio.shoot(); });
   game.on('miss', () => audio.miss());
@@ -302,6 +319,9 @@ async function boot() {
     renderer.burst(screen.x, screen.y, '#C98BFF', 24, 260);
     renderer.burst(screen.x, screen.y, '#FFFFFF', 10, 180);
     renderer.floater(screen.x, screen.y, `+${gained}${mult > 1 ? ' ×' + mult : ''}`);
+    renderer.shockwave(screen.x, screen.y, '#C98BFF');
+    renderer.shake = Math.max(renderer.shake, 0.25);
+    vibrate(25);
     audio.hit();
   });
   game.on('wrong', ({ obj }) => { audio.wrong(); const p = game.project(obj.x, obj.y, obj.z, W(), H()); renderer.floater(p.sx, p.sy, `−${game.balance.residentPenalty}`, '#FF6B5E'); });
@@ -310,7 +330,6 @@ async function boot() {
     if (items.length) { audio.gate(); popScore(`+${gained}`); renderer.burst(W() / 2, H() / 2, '#45D6FF', 30, 300); }
   });
   game.on('toast', ({ text, kind, short }) => toast(text, kind, short ? 800 : 1400));
-  game.on('bonus', () => showBonus(false));
   game.on('mission', ({ state, mission }) => {
     if (state === 'start') { setMissionPanel(mission, 'start'); toast(`${mission.def.title}`, 'good', 1800); }
     else if (state === 'done') { setMissionPanel(mission, 'done'); audio.pickup(); popScore(`+${mission.def.reward}`); }

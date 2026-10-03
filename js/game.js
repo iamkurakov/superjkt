@@ -17,7 +17,6 @@ export class Game {
     this.texts = texts;
     this.listeners = {};
     this.view = 'first'; // first | third
-    this.bonusInterval = 60;
     this.reset();
   }
 
@@ -36,7 +35,8 @@ export class Game {
     this.px = 0; this.py = 0;
     this.camX = 0; this.camY = 0;
     this.vx = 0; this.vy = 0;
-    this.bonusesGiven = 0;
+    this.bank = 0; this.pitch = 0;
+    this.slowUntil = 0;
     this.bonuses = [];
     this.shield = b.shieldStart;
     this.energy = b.energyStart;
@@ -65,7 +65,7 @@ export class Game {
     };
   }
 
-  start() { this.started = true; this._lastPx = this.px; this._lastPy = this.py; this.emit('start'); this._startRound(0); }
+  start() { this.started = true; this.emit('start'); this._startRound(0); }
 
   _startRound(idx) {
     const r = this.rounds[idx];
@@ -138,28 +138,26 @@ export class Game {
     const speed = this.route.forwardSpeed;
     this.dist += speed * dt;
 
-    // Движение корабля
-    const LIMIT = 0.72;
-    if (input.absolute) {
-      const tx = clamp(input.absolute.x, -1, 1) * LIMIT, ty = clamp(input.absolute.y, -1, 1) * LIMIT;
-      const k = 1 - Math.exp(-dt * 11);
-      this.px += (tx - this.px) * k; this.py += (ty - this.py) * k;
-    } else {
-      this.px += input.velocity.x * 2.4 * dt; this.py += input.velocity.y * 2.4 * dt;
-    }
-    const len = Math.hypot(this.px, this.py);
-    if (len > LIMIT) { this.px *= LIMIT / len; this.py *= LIMIT / len; }
-    const ox = this.px, oy = this.py;
-    this._camera(dt);
-    this.vx += ((this.px - (this._lastPx ?? ox)) / dt - this.vx) * Math.min(1, dt * 12);
-    this.vy += ((this.py - (this._lastPy ?? oy)) / dt - this.vy) * Math.min(1, dt * 12);
-    this._lastPx = this.px; this._lastPy = this.py;
+    // Замедление времени на короткий миг после удара (hit-stop)
+    if (this.t < this.slowUntil) dt *= 0.4;
 
-    // Бонус от клиники каждую минуту полёта
-    if (Math.floor(this.t / this.bonusInterval) > this.bonusesGiven) {
-      this.bonusesGiven++;
-      this.emit('bonus', { index: this.bonusesGiven });
-    }
+    // Движение корабля: пружина с инерцией, как у лёгкого самолёта
+    const LIMIT = 0.72;
+    let tx, ty;
+    if (input.absolute) { tx = clamp(input.absolute.x, -1, 1) * LIMIT; ty = clamp(input.absolute.y, -1, 1) * LIMIT; }
+    else { tx = clamp(this.px + input.velocity.x * 0.45, -LIMIT, LIMIT); ty = clamp(this.py + input.velocity.y * 0.45, -LIMIT, LIMIT); }
+    const ACC = 70, DAMP = 11;
+    this.vx += ((tx - this.px) * ACC - this.vx * DAMP) * dt;
+    this.vy += ((ty - this.py) * ACC - this.vy * DAMP) * dt;
+    this.px += this.vx * dt; this.py += this.vy * dt;
+    const len = Math.hypot(this.px, this.py);
+    if (len > LIMIT) { this.px *= LIMIT / len; this.py *= LIMIT / len; this.vx *= 0.5; this.vy *= 0.5; }
+    // Крен и тангаж следуют за скоростью
+    const kb = 1 - Math.exp(-dt * 8);
+    this.bank += (clamp(this.vx * 0.42, -0.75, 0.75) - this.bank) * kb;
+    this.pitch += (clamp(-this.vy * 0.25, -0.35, 0.35) - this.pitch) * kb;
+    this._camera(dt);
+
 
     // Энергия
     this.energy = clamp(this.energy + b.energyRegen * dt, 0, 100);
@@ -185,6 +183,14 @@ export class Game {
     for (const o of this.objects) {
       o.z -= speed * dt;
       o.spin += dt;
+      if (o.kind === 'target' && !o.resolved && o.z < 32 && o.z > 2) {
+        // Микроб-помеха тянется к кораблю
+        const dx = this.px - o.x, dy = this.py - o.y, d = Math.hypot(dx, dy) || 1;
+        const sp = (o.homing || 0.22) * Math.min(1, (32 - o.z) / 12);
+        o.x += (dx / d) * sp * dt; o.y += (dy / d) * sp * dt;
+      } else if (o.kind === 'resident') {
+        o.x += Math.sin(o.spin * 1.7) * 0.12 * dt; o.y += Math.cos(o.spin * 1.3) * 0.1 * dt;
+      }
       if (!o.passed && o.z <= 0.6) { o.passed = true; this._encounter(o); if (this.between) return; }
     }
     this.objects = this.objects.filter((o) => o.z > -6 && !(o.resolved && o.z <= 0.6 && o.type !== 'gate'));
@@ -229,7 +235,8 @@ export class Game {
       id: this.nextId++, type, def, kind: def.kind, x: pos.x, y: pos.y, z,
       spin: rand(0, 6), passed: false, resolved: false,
       mission: !!opts.mission, missionId: opts.missionId || null,
-      size: def.kind === 'target' ? 0.17 : def.kind === 'obstacle' ? 0.2 : def.kind === 'resident' ? 0.15 : 0.15,
+      size: def.kind === 'target' ? 0.17 : def.kind === 'obstacle' ? 0.22 : def.kind === 'resident' ? 0.15 : 0.15,
+      homing: 0.08 + (this.sectionIndex || 0) * 0.05,
     };
     this.objects.push(o);
     return o;
@@ -263,7 +270,7 @@ export class Game {
     const b = this.balance;
     if (o.type === 'gate') { this._gate(o); return; }
     const d = Math.hypot(o.x - this.px, o.y - this.py);
-    const captureR = o.kind === 'target' || o.kind === 'obstacle' ? 0.27 : 0.32;
+    const captureR = o.kind === 'target' || o.kind === 'obstacle' ? 0.3 : 0.32;
     if (d > captureR) return;
     switch (o.kind) {
       case 'resource': { // вода
@@ -310,15 +317,16 @@ export class Game {
 
   _collide(o) {
     const b = this.balance;
-    this.emit('bump', { obj: o, soft: !this.section.damage });
-    if (!this.section.damage) return; // обучение: без урона
-    if (this.t < this.invulnUntil) return;
+    const dmg = typeof this.section.damage === 'number' ? this.section.damage : (this.section.damage ? b.collisionDamage : 0);
+    if (dmg <= 0) { this.emit('bump', { obj: o, soft: true }); return; }
+    if (this.t < this.invulnUntil) { this.emit('bump', { obj: o, soft: true }); return; }
     this.stats.collisions++;
     this.combo = 0;
-    this.shield = clamp(this.shield - (o.def.damage || b.collisionDamage), 0, 100);
+    this.shield = clamp(this.shield - dmg, 0, 100);
     this.invulnUntil = this.t + b.invulnerableAfterHit;
     this.lastHitAt = this.t;
-    this.emit('damage', { obj: o });
+    this.slowUntil = this.t + 0.3;
+    this.emit('damage', { obj: o, amount: dmg, shield: this.shield });
     if (this.shield <= 0) this._emergency();
   }
 
@@ -505,6 +513,15 @@ export class Game {
   roundTimeLeft() { return this.round ? Math.max(0, this.round.def.duration - this.rt) : 0; }
   isInvulnerable() { return this.t < this.invulnUntil; }
   isEmergency() { return this.t < this.emergencyUntil; }
+  // Опасности на курсе столкновения (для предупреждающих маркеров)
+  threats() {
+    const out = [];
+    for (const o of this.objects) {
+      if (o.resolved || (o.kind !== 'target' && o.kind !== 'obstacle') || o.z > 30 || o.z < 1) continue;
+      if (Math.hypot(o.x - this.px, o.y - this.py) < 0.36) out.push(o);
+    }
+    return out;
+  }
   nextMissionObject() {
     let best = null;
     for (const o of this.objects) if (o.mission && !o.resolved && o.z > 1 && (!best || o.z < best.z)) best = o;
