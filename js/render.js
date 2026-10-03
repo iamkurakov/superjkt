@@ -1,5 +1,7 @@
 // Отрисовка сцены: перспективный тоннель, объекты в капсулах, шлюзы, импульсы, частицы, прицел.
 import { Z_FAR } from './game.js';
+import { drawShip } from './ship.js';
+import { drawIntro } from './intro.js';
 
 const RING_STEP = 6;
 
@@ -28,7 +30,15 @@ export class Renderer {
     this.lastDamage = -10;
     this.lowPerf = false;
     this._frameTimes = [];
+    this.fadeIn = 0; // затемнение после интро
+    this.logoImg = null;
     this.resize();
+  }
+
+  drawIntro(time) {
+    const ctx = this.ctx;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    drawIntro(ctx, this.w, this.h, time, this.texts, this.logoImg);
   }
 
   resize() {
@@ -94,11 +104,37 @@ export class Renderer {
     this._drawTunnel();
     this._drawGuide();
     this._drawObjects();
+    if (g.view === 'third') this._drawShip();
     this._drawPulses(dt);
     this._drawParticles(dt);
     this._drawFloaters(dt);
     this._drawCrosshair();
     this._drawEffects();
+    if (this.fadeIn > 0) {
+      this.fadeIn = Math.max(0, this.fadeIn - dt * 1.2);
+      ctx.fillStyle = `rgba(20,4,8,${this.fadeIn})`;
+      ctx.fillRect(-20, -20, w + 40, h + 40);
+    }
+  }
+
+  _drawShip() {
+    const g = this.game, ctx = this.ctx, w = this.w, h = this.h;
+    const p = g.shipScreen(w, h);
+    const size = Math.min(w, h) * 0.09;
+    const bank = Math.max(-0.55, Math.min(0.55, g.vx * 0.45));
+    // Тень корабля на «полу» тоннеля
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.ellipse(p.sx, p.sy + size * 1.4, size * 1.1, size * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    if (g.isInvulnerable() && Math.sin(g.t * 24) > 0) ctx.globalAlpha = 0.55;
+    drawShip(ctx, p.sx, p.sy, size, bank, g.t, { glow: 1 + Math.hypot(g.vx, g.vy) * 0.2 });
+    ctx.globalAlpha = 1;
+    if (g.isEmergency()) {
+      ctx.strokeStyle = `rgba(69,214,255,${0.5 + 0.3 * Math.sin(g.t * 12)})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(p.sx, p.sy, size * 1.5, size * 1.5, 0, 0, Math.PI * 2); ctx.stroke();
+    }
   }
 
   _drawTunnel() {
@@ -161,9 +197,10 @@ export class Renderer {
     ctx.lineDashOffset = -(g.t * 80) % 22;
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(69,214,255,0.45)';
+    const from = g.view === 'third' ? (() => { const sp = g.shipScreen(w, h); return { x: sp.sx, y: sp.sy }; })() : { x: w / 2, y: h * 0.86 };
     ctx.beginPath();
-    ctx.moveTo(w / 2, h * 0.86);
-    ctx.quadraticCurveTo(w / 2, (h * 0.86 + p.sy) / 2, p.sx, p.sy);
+    ctx.moveTo(from.x, from.y);
+    ctx.quadraticCurveTo(from.x, (from.y + p.sy) / 2, p.sx, p.sy);
     ctx.stroke();
     ctx.restore();
   }
@@ -302,7 +339,8 @@ export class Renderer {
 
   _drawPulses(dt) {
     const ctx = this.ctx, w = this.w, h = this.h;
-    const x0 = w / 2, y0 = h * 0.98;
+    let x0 = w / 2, y0 = h * 0.98, spread = 40;
+    if (this.game.view === 'third') { const p = this.game.shipScreen(w, h); x0 = p.sx; y0 = p.sy - 10; spread = Math.min(w, h) * 0.03; }
     this.pulses = this.pulses.filter((p) => (p.age += dt) < 0.22);
     for (const p of this.pulses) {
       const k = p.age / 0.22;
@@ -310,9 +348,9 @@ export class Renderer {
       ctx.globalAlpha = 1 - k;
       ctx.lineCap = 'round';
       ctx.strokeStyle = '#DD2A1B'; ctx.lineWidth = 10 * (1 - k) + 2;
-      ctx.beginPath(); ctx.moveTo(x0 - 40, y0); ctx.lineTo(p.x1, p.y1); ctx.moveTo(x0 + 40, y0); ctx.lineTo(p.x1, p.y1); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x0 - spread, y0); ctx.lineTo(p.x1, p.y1); ctx.moveTo(x0 + spread, y0); ctx.lineTo(p.x1, p.y1); ctx.stroke();
       ctx.strokeStyle = '#FFE2DD'; ctx.lineWidth = 3 * (1 - k) + 1;
-      ctx.beginPath(); ctx.moveTo(x0 - 40, y0); ctx.lineTo(p.x1, p.y1); ctx.moveTo(x0 + 40, y0); ctx.lineTo(p.x1, p.y1); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x0 - spread, y0); ctx.lineTo(p.x1, p.y1); ctx.moveTo(x0 + spread, y0); ctx.lineTo(p.x1, p.y1); ctx.stroke();
       ctx.fillStyle = '#FFE2DD';
       ctx.beginPath(); ctx.arc(p.x1, p.y1, 8 * (1 - k) + 2, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
@@ -352,17 +390,18 @@ export class Renderer {
   _drawCrosshair() {
     const g = this.game, ctx = this.ctx, w = this.w, h = this.h;
     // Есть ли цель под прицелом
+    const aim = g.aimPoint(w, h);
     let onTarget = false, onResident = false;
     for (const o of g.objects) {
       if (o.resolved || o.z < 0.8 || (o.kind !== 'target' && o.kind !== 'resident')) continue;
       const p = g.project(o.x, o.y, o.z, w, h);
       const rad = Math.max(22, o.size * p.R * p.scale * 1.05);
-      if (Math.hypot(p.sx - w / 2, p.sy - h / 2) < rad) { if (o.kind === 'target') onTarget = true; else onResident = true; }
+      if (Math.hypot(p.sx - aim.x, p.sy - aim.y) < rad) { if (o.kind === 'target') onTarget = true; else onResident = true; }
     }
     const col = onTarget ? '#FF4A3D' : onResident ? '#5CF0A8' : '#45D6FF';
     const r = onTarget ? 24 : 20;
     ctx.save();
-    ctx.translate(w / 2, h / 2);
+    ctx.translate(aim.x, aim.y);
     ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
     ctx.shadowColor = col; ctx.shadowBlur = 8;
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
@@ -374,6 +413,7 @@ export class Renderer {
     ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
 
+    if (g.view !== 'first') return;
     // Нос корабля
     ctx.save();
     ctx.translate(w / 2, h);

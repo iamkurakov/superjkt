@@ -15,4 +15,6 @@ export const storage = {
   setSound(on) { safeSet('sound', on ? '1' : '0'); },
   getTilt() { return safeGet('tilt') === '1'; },
   setTilt(on) { safeSet('tilt', on ? '1' : '0'); },
+  getView() { return safeGet('view') === 'third' ? 'third' : 'first'; },
+  setView(v) { safeSet('view', v); },
 };

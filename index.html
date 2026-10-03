@@ -80,7 +80,10 @@
         <div class="hud-right">
           <div class="hud-timer"><span id="hud-round" class="hud-round">Раунд 1/10</span><span class="ico">⏱</span><span id="hud-time">0:30</span></div>
           <div id="hud-section" class="hud-section">Пищевод</div>
-          <button id="btn-pause" class="btn-icon" aria-label="Пауза">❚❚</button>
+          <div class="hud-btns">
+            <button id="btn-view" class="btn-icon" aria-label="Сменить вид" title="Сменить вид (V)">🎥</button>
+            <button id="btn-pause" class="btn-icon" aria-label="Пауза">❚❚</button>
+          </div>
         </div>
       </div>
 
@@ -119,6 +122,13 @@
       </div>
       <button id="btn-fire" class="btn-fire" aria-label="Импульс"><span>◎</span></button>
 
+      <div id="bonus-popup" class="bonus-popup" hidden>
+        <div class="bonus-card">
+          <div class="bonus-ribbon">🎁 <span data-text="hud.bonus">Бонус</span></div>
+          <div id="bonus-text" class="bonus-text">Ты выиграл скидку на чекап</div>
+          <button id="btn-bonus-close" class="btn btn-primary" data-text="hud.bonusClose">Отлично</button>
+        </div>
+      </div>
       <div id="round-overlay" class="round-overlay" hidden>
         <div class="round-card">
           <div id="round-label" class="round-label">Раунд 1 из 10</div>
@@ -164,6 +174,10 @@
           <div class="rcell rcell-wide"><span class="rlabel" data-text="result.categories">Собранные категории</span><b id="r-categories">—</b></div>
         </div>
         <div id="result-rounds" class="result-rounds"></div>
+        <div id="result-bonuses" class="result-bonuses" hidden>
+          <div class="rlabel" data-text="result.bonuses">Твои бонусы</div>
+          <ul id="result-bonus-list"></ul>
+        </div>
         <div class="panel-buttons">
           <button id="btn-replay" class="btn btn-primary btn-xl" data-text="result.replay">Ещё раз</button>
           <button id="btn-menu" class="btn btn-ghost" data-text="result.menu">В меню</button>

@@ -16,6 +16,8 @@ export class Game {
     this.roundDefs = missions.rounds.slice();
     this.texts = texts;
     this.listeners = {};
+    this.view = 'first'; // first | third
+    this.bonusInterval = 60;
     this.reset();
   }
 
@@ -32,6 +34,10 @@ export class Game {
     this.started = false;
     this.between = false;    // пауза между раундами
     this.px = 0; this.py = 0;
+    this.camX = 0; this.camY = 0;
+    this.vx = 0; this.vy = 0;
+    this.bonusesGiven = 0;
+    this.bonuses = [];
     this.shield = b.shieldStart;
     this.energy = b.energyStart;
     this.cargo = [];
@@ -59,7 +65,7 @@ export class Game {
     };
   }
 
-  start() { this.started = true; this.emit('start'); this._startRound(0); }
+  start() { this.started = true; this._lastPx = this.px; this._lastPy = this.py; this.emit('start'); this._startRound(0); }
 
   _startRound(idx) {
     const r = this.rounds[idx];
@@ -107,11 +113,20 @@ export class Game {
     const p = NEAR / (NEAR + Math.max(z, -NEAR * 0.9));
     const c = this.curve(z), c0 = this.curve(0);
     return {
-      sx: w / 2 + (x - this.px + (c.x - c0.x) * 2.2) * R * p,
-      sy: h / 2 + (y - this.py + (c.y - c0.y) * 2.2) * R * p,
+      sx: w / 2 + (x - this.camX + (c.x - c0.x) * 2.2) * R * p,
+      sy: h / 2 + (y - this.camY + (c.y - c0.y) * 2.2) * R * p,
       scale: p, R,
     };
   }
+
+  // Точка прицела на экране: в кабине — центр, в виде сзади — луч корабля вперёд
+  aimPoint(w, h) {
+    if (this.view === 'first') return { x: w / 2, y: h / 2 };
+    const p = this.project(this.px, this.py, 26, w, h);
+    return { x: p.sx, y: p.sy };
+  }
+  // Положение корабля на экране (вид сзади)
+  shipScreen(w, h) { return this.project(this.px, this.py, 4.5, w, h); }
 
   // ---------- Основной цикл ----------
   update(dt, input) {
@@ -134,6 +149,17 @@ export class Game {
     }
     const len = Math.hypot(this.px, this.py);
     if (len > LIMIT) { this.px *= LIMIT / len; this.py *= LIMIT / len; }
+    const ox = this.px, oy = this.py;
+    this._camera(dt);
+    this.vx += ((this.px - (this._lastPx ?? ox)) / dt - this.vx) * Math.min(1, dt * 12);
+    this.vy += ((this.py - (this._lastPy ?? oy)) / dt - this.vy) * Math.min(1, dt * 12);
+    this._lastPx = this.px; this._lastPy = this.py;
+
+    // Бонус от клиники каждую минуту полёта
+    if (Math.floor(this.t / this.bonusInterval) > this.bonusesGiven) {
+      this.bonusesGiven++;
+      this.emit('bonus', { index: this.bonusesGiven });
+    }
 
     // Энергия
     this.energy = clamp(this.energy + b.energyRegen * dt, 0, 100);
@@ -166,6 +192,14 @@ export class Game {
     // Страховка: если шлюз не встретился, раунд всё равно завершается
     if (this.rt >= this.round.def.duration + 2) this._endRound();
   }
+
+  _camera(dt) {
+    if (this.view === 'first') { this.camX = this.px; this.camY = this.py; return; }
+    const tx = this.px * 0.55, ty = this.py * 0.55 - 0.1;
+    const k = 1 - Math.exp(-dt * 7);
+    this.camX += (tx - this.camX) * k; this.camY += (ty - this.camY) * k;
+  }
+  setView(v) { this.view = v; if (v === 'first') { this.camX = this.px; this.camY = this.py; } }
 
   _enterSection(idx) {
     this.sectionIndex = idx;
@@ -337,16 +371,17 @@ export class Game {
     this.stats.shots++;
 
     // Поиск цели под прицелом
+    const aim = this.aimPoint(w, h);
     let best = null, bestZ = Infinity;
     for (const o of this.objects) {
       if (o.resolved || o.z < 0.8 || o.z > Z_FAR) continue;
       if (o.kind !== 'target' && o.kind !== 'resident') continue;
       const p = this.project(o.x, o.y, o.z, w, h);
       const rad = Math.max(22, o.size * p.R * p.scale * 1.05);
-      const d = Math.hypot(p.sx - w / 2, p.sy - h / 2);
+      const d = Math.hypot(p.sx - aim.x, p.sy - aim.y);
       if (d < rad && o.z < bestZ) { best = o; bestZ = o.z; }
     }
-    const target = best ? this.project(best.x, best.y, best.z, w, h) : { sx: w / 2, sy: h / 2, scale: 0.08 };
+    const target = best ? this.project(best.x, best.y, best.z, w, h) : { sx: aim.x, sy: aim.y, scale: 0.08 };
     this.emit('shoot', { target: { x: target.sx, y: target.sy }, hit: !!best });
 
     if (!best) { this.combo = 0; this.emit('miss', {}); return; }
@@ -461,6 +496,7 @@ export class Game {
       categories: Array.from(s.categories).map((c) => this.categories[c].name),
       emergencies: s.emergencies,
       rounds: this.rounds.map((r) => ({ id: r.def.id, title: r.def.title, result: r.result })),
+      bonuses: this.bonuses.slice(),
     };
     this.emit('finish', result);
   }

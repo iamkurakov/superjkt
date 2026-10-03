@@ -57,6 +57,8 @@ export class GameAudio {
   mission() { [523, 659, 784, 1046].forEach((f, i) => this._tone(f, 0.22, { type: 'triangle', delay: i * 0.1, vol: .8 })); }
   fail() { this._tone(330, 0.2, { type: 'triangle', slideTo: 165, vol: .5 }); }
   emergency() { for (let i = 0; i < 3; i++) this._tone(440, 0.12, { type: 'square', delay: i * 0.18, vol: .4 }); }
+  count() { this._tone(660, 0.12, { type: 'square', vol: .35 }); }
+  go() { this._tone(880, 0.25, { type: 'square', vol: .4 }); this._tone(1320, 0.4, { type: 'triangle', vol: .5, delay: .12 }); }
   section() { this._tone(392, 0.25, { type: 'sine', vol: .6 }); this._tone(587, 0.3, { type: 'sine', vol: .6, delay: .2 }); }
   finish() { [523, 659, 784, 1046, 1318].forEach((f, i) => this._tone(f, 0.3, { type: 'triangle', delay: i * 0.12, vol: .8 })); }
 }

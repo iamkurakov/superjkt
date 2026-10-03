@@ -4,6 +4,7 @@ import { Renderer } from './render.js';
 import { Input } from './input.js';
 import { GameAudio } from './audio.js';
 import { Music } from './music.js';
+import { INTRO_DURATION } from './intro.js';
 import { storage } from './storage.js';
 import { track } from './analytics.js';
 
@@ -52,6 +53,8 @@ async function boot() {
   const canvas = $('game-canvas');
   const game = new Game(cfg);
   const renderer = new Renderer(canvas, game, texts);
+  renderer.logoImg = new Image(); renderer.logoImg.src = brand.logo;
+  game.bonusInterval = brand.bonusIntervalSeconds || 60;
   const audio = new GameAudio();
   const music = new Music(() => audio.ctx, { volume: 0.11 });
   const input = new Input({ canvas, joystickEl: $('joystick'), knobEl: $('joy-knob'), fireBtn: $('btn-fire') });
@@ -126,6 +129,41 @@ async function boot() {
       input.requestTilt().then((r) => { if (r.ok) renderTilt(); });
     }
   }
+
+  // ---- Вид: кабина / корабль сзади ----
+  let view = storage.getView();
+  function applyView() {
+    game.setView(view);
+    app.classList.toggle('view-third', view === 'third');
+    $('btn-view').textContent = view === 'third' ? '🚀' : '🎥';
+    $('btn-view').title = view === 'third' ? texts.hud.viewFirst : texts.hud.viewThird;
+  }
+  function toggleView() { view = view === 'third' ? 'first' : 'third'; storage.setView(view); applyView(); toast(`${texts.hud.view}: ${view === 'third' ? texts.hud.viewThird : texts.hud.viewFirst}`, '', 1000); track('view', { view }); }
+  $('btn-view').addEventListener('click', toggleView);
+
+  // ---- Бонусы от клиники ----
+  const bonusPool = (brand.bonuses || []).slice();
+  let bonusBag = [];
+  const bonusPopup = $('bonus-popup');
+  let bonusTimer = 0;
+  let pendingBonus = false;
+  function flushPendingBonus() { if (!pendingBonus) return; pendingBonus = false; setTimeout(() => showBonus(true), 600); }
+  function showBonus(force = false) {
+    if (!bonusPool.length) return;
+    // Если сейчас карточка раунда — покажем бонус после неё
+    if (!force && (game.between || !roundOverlay.hidden)) { pendingBonus = true; return; }
+    if (!bonusBag.length) bonusBag = bonusPool.slice().sort(() => Math.random() - 0.5);
+    const text = bonusBag.pop();
+    game.bonuses.push(text);
+    $('bonus-text').textContent = text;
+    bonusPopup.hidden = false;
+    audio.gate();
+    clearTimeout(bonusTimer);
+    bonusTimer = setTimeout(hideBonus, 6000);
+    track('bonus', { text });
+  }
+  function hideBonus() { clearTimeout(bonusTimer); bonusPopup.hidden = true; }
+  $('btn-bonus-close').addEventListener('click', hideBonus);
 
   // ---- HUD ----
   const hud = {
@@ -218,6 +256,7 @@ async function boot() {
     roundOverlay.hidden = true;
     if (input.tilt.enabled) input.calibrateTilt();
     game.nextRound();
+    flushPendingBonus();
   }
   $('btn-round-next').addEventListener('click', advanceRound);
   roundOverlay.addEventListener('click', (e) => { if (e.target === roundOverlay) advanceRound(); });
@@ -271,6 +310,7 @@ async function boot() {
     if (items.length) { audio.gate(); popScore(`+${gained}`); renderer.burst(W() / 2, H() / 2, '#45D6FF', 30, 300); }
   });
   game.on('toast', ({ text, kind, short }) => toast(text, kind, short ? 800 : 1400));
+  game.on('bonus', () => showBonus(false));
   game.on('mission', ({ state, mission }) => {
     if (state === 'start') { setMissionPanel(mission, 'start'); toast(`${mission.def.title}`, 'good', 1800); }
     else if (state === 'done') { setMissionPanel(mission, 'done'); audio.pickup(); popScore(`+${mission.def.reward}`); }
@@ -285,6 +325,9 @@ async function boot() {
     $('result-newbest').hidden = !isBest;
     $('r-score').textContent = result.score;
     $('r-rounds').textContent = `${result.roundsWon}/${result.roundsTotal}`;
+    $('result-bonuses').hidden = !result.bonuses.length;
+    $('result-bonus-list').innerHTML = result.bonuses.map((b) => `<li>🎁 ${b}</li>`).join('');
+    hideBonus();
     $('result-rounds').innerHTML = result.rounds.map((r) => `<i class="${r.result || ''}" title="${r.title}"></i>`).join('');
     music.stop();
     $('r-accuracy').textContent = `${result.accuracy}%`;
@@ -301,6 +344,15 @@ async function boot() {
     const dt = Math.min(0.1, (ts - lastTs) / 1000 || 0);
     lastTs = ts;
     if (current !== 'game' && current !== 'pause') return;
+    if (intro.active) {
+      intro.time += dt;
+      const n = 3 - Math.floor(Math.min(intro.time, 2.99));
+      if (n !== intro.lastCount && intro.time < 3) { intro.lastCount = n; audio.count(); }
+      if (intro.time >= 3 && !intro.goPlayed) { intro.goPlayed = true; audio.go(); }
+      renderer.drawIntro(intro.time);
+      if (intro.time >= INTRO_DURATION) finishIntro();
+      return;
+    }
     if (!game.paused && !game.finished) game.update(dt, input.read());
     tiltWatchdog();
     renderer.draw(game.paused ? 0 : dt);
@@ -346,11 +398,24 @@ async function boot() {
       ov.hidden = true;
       tiltStartedAt = performance.now();
     }
+    applyView();
+    hideBonus();
+    intro.active = true; intro.time = 0; intro.lastCount = null; intro.goPlayed = false;
+    hudEl.classList.add('hidden-intro');
+    if (!rafId) { lastTs = performance.now(); rafId = requestAnimationFrame(loop); }
+  }
+  const intro = { active: false, time: 0, lastCount: null, goPlayed: false };
+  const hudEl = screens.game;
+  function finishIntro() {
+    intro.active = false;
+    hudEl.classList.remove('hidden-intro');
+    renderer.fadeIn = 1;
+    if (input.tilt.enabled) input.calibrateTilt();
     game.start();
     music.start();
     toast(texts.hud.tutorialWelcome, 'good', 2000);
-    if (!rafId) { lastTs = performance.now(); rafId = requestAnimationFrame(loop); }
   }
+  canvas.addEventListener('pointerdown', () => { if (intro.active && intro.time > 0.5) { intro.time = INTRO_DURATION; } });
 
   function pause(fromSystem = false) {
     if (current !== 'game' || game.finished || !game.started) return;
@@ -378,15 +443,16 @@ async function boot() {
   $('btn-howto-close').addEventListener('click', () => show('start'));
   $('btn-pause').addEventListener('click', () => pause(false));
   $('btn-resume').addEventListener('click', resume);
-  $('btn-quit').addEventListener('click', () => { game.paused = false; game.started = false; music.stop(); roundOverlay.hidden = true; clearTimeout(roundTimer); show('start'); });
+  $('btn-quit').addEventListener('click', () => { game.paused = false; game.started = false; intro.active = false; hideBonus(); music.stop(); roundOverlay.hidden = true; clearTimeout(roundTimer); show('start'); });
   $('btn-menu').addEventListener('click', () => show('start'));
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' || e.code === 'KeyP') { if (current === 'game') pause(false); else if (current === 'pause') resume(); }
     if (e.code === 'Enter' && current === 'start') startMission();
+    if (e.code === 'KeyV' && current === 'game') toggleView();
   });
 
   // Пауза при уходе со вкладки — возвращение требует нажатия «Продолжить»
-  document.addEventListener('visibilitychange', () => { if (document.hidden) pause(true); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { if (intro.active) { intro.time = INTRO_DURATION; } else pause(true); } });
   window.addEventListener('blur', () => { if (input.isTouch) return; pause(true); });
 
   // Размер холста
