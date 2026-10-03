@@ -201,7 +201,9 @@ export class Game {
 
   _camera(dt) {
     if (this.view === 'first') { this.camX = this.px; this.camY = this.py; return; }
-    const tx = this.px * 0.55, ty = this.py * 0.55 - 0.1;
+    // В портретной ориентации камера следует плотнее, чтобы корабль не уходил за край
+    const follow = (this.aspect || 1.6) < 1 ? 0.82 : 0.6;
+    const tx = this.px * follow, ty = this.py * follow - 0.1;
     const k = 1 - Math.exp(-dt * 7);
     this.camX += (tx - this.camX) * k; this.camY += (ty - this.camY) * k;
   }

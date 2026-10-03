@@ -1,5 +1,5 @@
 // Интро: отсчёт 3-2-1, корабль залетает в открытый рот (крупный план), затем переход в тоннель.
-import { drawShip } from './ship.js?v=2026.10.03-4';
+import { drawShip } from './ship.js?v=2026.10.03-5';
 
 export const INTRO_DURATION = 4.2;
 const COUNT_END = 3.0;

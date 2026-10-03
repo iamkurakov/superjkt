@@ -1,7 +1,7 @@
 // Отрисовка сцены: перспективный тоннель, объекты в капсулах, шлюзы, импульсы, частицы, прицел.
-import { Z_FAR } from './game.js?v=2026.10.03-4';
-import { drawShip } from './ship.js?v=2026.10.03-4';
-import { drawIntro } from './intro.js?v=2026.10.03-4';
+import { Z_FAR } from './game.js?v=2026.10.03-5';
+import { drawShip } from './ship.js?v=2026.10.03-5';
+import { drawIntro } from './intro.js?v=2026.10.03-5';
 
 const RING_STEP = 6;
 
@@ -50,6 +50,7 @@ export class Renderer {
     this.dpr = Math.min(window.devicePixelRatio || 1, this.lowPerf ? 1 : 2);
     this.w = Math.max(1, Math.round(r.width));
     this.h = Math.max(1, Math.round(r.height));
+    this.game.aspect = this.w / this.h;
     this.canvas.width = Math.round(this.w * this.dpr);
     this.canvas.height = Math.round(this.h * this.dpr);
   }
@@ -154,7 +155,7 @@ export class Renderer {
     ctx.save();
     ctx.globalAlpha = 0.18;
     ctx.fillStyle = '#000';
-    ctx.beginPath(); ctx.ellipse(p.sx, p.sy + size * 1.4, size * 1.1, size * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(p.sx, p.sy + size * 1.6, size * 1.4, size * 0.3, 0, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
     if (g.isInvulnerable() && Math.sin(g.t * 24) > 0) ctx.globalAlpha = 0.55;
     drawShip(ctx, p.sx, p.sy, size, bank, g.t, { glow: 1 + Math.hypot(g.vx, g.vy) * 0.25, pitch: g.pitch });
@@ -416,21 +417,25 @@ export class Renderer {
     }
   }
 
+  // Шлейф из сопел: частицы привязаны к кораблю и уходят назад (к камере), расширяясь и угасая
   _drawTrail(dt) {
     const g = this.game, ctx = this.ctx, w = this.w, h = this.h;
     const p = g.shipScreen(w, h);
-    const size = Math.min(w, h) * 0.105;
-    for (const ex of [-0.46, 0.46]) {
-      this.trail.push({ x: p.sx + Math.cos(g.bank) * ex * size - Math.sin(g.bank) * 0.5 * size, y: p.sy + Math.sin(g.bank) * ex * size + Math.cos(g.bank) * 0.5 * size, age: 0 });
+    const size = Math.min(w, h) * (w < h ? 0.14 : 0.12);
+    const cb = Math.cos(g.bank), sb = Math.sin(g.bank);
+    for (const ex of [-0.56, 0.56]) {
+      const ox = ex * size, oy = 0.6 * size;
+      this.trail.push({ ox: ox * cb - oy * sb, oy: ox * sb + oy * cb, age: 0, jx: (Math.random() - 0.5) * size * 0.1 });
     }
-    if (this.trail.length > 70) this.trail.splice(0, this.trail.length - 70);
+    if (this.trail.length > 60) this.trail.splice(0, this.trail.length - 60);
     for (const t of this.trail) {
-      t.age += dt; t.y += dt * 140; // уходит назад (вниз-к камере)
-      const k = Math.max(0, 1 - t.age / 0.45);
-      ctx.fillStyle = `rgba(69,214,255,${0.35 * k})`;
-      ctx.beginPath(); ctx.arc(t.x, t.y, size * 0.16 * (1 + t.age * 2), 0, Math.PI * 2); ctx.fill();
+      t.age += dt;
+      const k = Math.max(0, 1 - t.age / 0.4);
+      const x = p.sx + t.ox + t.jx * t.age * 4, y = p.sy + t.oy + t.age * size * 4.5;
+      ctx.fillStyle = `rgba(69,214,255,${0.3 * k})`;
+      ctx.beginPath(); ctx.arc(x, y, size * 0.12 * (1 + t.age * 3), 0, Math.PI * 2); ctx.fill();
     }
-    this.trail = this.trail.filter((t) => t.age < 0.45);
+    this.trail = this.trail.filter((t) => t.age < 0.4);
   }
 
   _drawShockwaves(dt) {

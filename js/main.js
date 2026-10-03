@@ -1,12 +1,12 @@
 // Точка входа: загрузка конфигов, экраны, HUD, игровой цикл.
-import { Game } from './game.js?v=2026.10.03-4';
-import { Renderer } from './render.js?v=2026.10.03-4';
-import { Input } from './input.js?v=2026.10.03-4';
-import { GameAudio } from './audio.js?v=2026.10.03-4';
-import { Music } from './music.js?v=2026.10.03-4';
-import { INTRO_DURATION } from './intro.js?v=2026.10.03-4';
-import { storage } from './storage.js?v=2026.10.03-4';
-import { track } from './analytics.js?v=2026.10.03-4';
+import { Game } from './game.js?v=2026.10.03-5';
+import { Renderer } from './render.js?v=2026.10.03-5';
+import { Input } from './input.js?v=2026.10.03-5';
+import { GameAudio } from './audio.js?v=2026.10.03-5';
+import { Music } from './music.js?v=2026.10.03-5';
+import { INTRO_DURATION } from './intro.js?v=2026.10.03-5';
+import { storage } from './storage.js?v=2026.10.03-5';
+import { track } from './analytics.js?v=2026.10.03-5';
 
 const $ = (id) => document.getElementById(id);
 const APP_VERSION = (new URL(import.meta.url)).searchParams.get('v') || 'dev';
